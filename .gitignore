@@ -1,0 +1,81 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/settings.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment configuration: only the root placeholder template is public.
+.env
+.env.*
+*.env
+.envrc
+.direnv/
+!/.env.example
+
+# Secrets and private key material
+secrets/
+.secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+.netrc
+_netrc
+.pypirc
+
+# Personal working data: prefer storage outside the repository.
+# .local/ is the designated in-workspace location, never src/ or public/.
+.local/
+local-data/
+personal-data/
+private-data/
+*.private.*
+*.personal.*
+
+# Local databases, journals, and database dumps
+*.db
+*.db-*
+*.db3
+*.db3-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.dump
+
+# Browser sessions and generated reports can contain personal inputs.
+.auth/
+*.har
+/coverage/
+/playwright-report/
+/test-results/
+
+# Local research and assistant working notes are not public documentation.
+/.copilot-tracking/
+
+*.tsbuildinfo
