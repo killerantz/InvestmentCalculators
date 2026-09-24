@@ -29,8 +29,10 @@ export function GrowthPlannerPage({ model }: { model: GrowthPlannerModel }) {
       <Notice>
         Returns and inflation are assumptions, not predictions. Monthly
         cent-rounding and simplified fee timing make the ledger understandable,
-        but actual outcomes will differ. Taxes, life phases, and changing cash
-        flows are not modeled yet.
+        but actual outcomes will differ. This calculator uses fixed cash flows
+        and does not model taxes or life-phase transitions. The separate
+        life-phase planner projects changing account instructions and income
+        streams.
       </Notice>
       <NumberField
         label="Projection length (months)"

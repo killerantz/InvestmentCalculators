@@ -25,6 +25,67 @@ function propsFor(values: readonly number[]): ComparisonChartProps {
 }
 
 describe('comparison chart presentation data', () => {
+  it('maps numeric timeline markers to the axis without adding financial points', () => {
+    const props = propsFor([10, 15, 20])
+    const markers = [
+      { id: 'first', x: 0, label: 'First stage', detail: 'At the start' },
+      { id: 'second', x: 0.5, label: 'Next stage', detail: 'Six months later' },
+    ]
+    const chart = prepareComparisonChart({ ...props, markers })
+    expect(chart.data).toEqual(prepareComparisonChart(props).data)
+    expect(chart.annotations.map((item) => item.text)).toEqual(['1', '2'])
+    expect(chart.annotations[1]).toMatchObject({
+      coordinates: {
+        type: 'mixed',
+        xCoordinateType: 'data',
+        yCoordinateType: 'relative',
+        x: 0.5,
+        y: 1,
+      },
+      connector: { arrow: 'none' },
+      accessibility: {
+        role: 'img',
+        ariaLabel: '2. Next stage. Six months later',
+      },
+    })
+    expect(chart.markers.map((marker) => marker.number)).toEqual([1, 2])
+  })
+  it('includes plan-start markers in singleton axes without inventing a month-zero payment', () => {
+    const chart = prepareComparisonChart({
+      ...propsFor([10]),
+      series: [{ id: 'income', label: 'Income', points: [{ x: 1, y: 10 }] }],
+      markers: [
+        { id: 'start', x: 0, label: 'Plan start', detail: 'First phase' },
+      ],
+    })
+    expect(chart.hasSingletonSeries).toBe(true)
+    expect(chart.xMinValue).toBe(0)
+    expect(chart.xMaxValue).toBe(1)
+    expect(chart.data.lineChartData[0]?.data).toHaveLength(1)
+    expect(chart.markers[0]?.x).toBe(0)
+  })
+  it('rejects invalid timeline markers explicitly', () => {
+    const marker = {
+      id: 'start',
+      x: 0,
+      label: 'Plan start',
+      detail: 'First phase',
+    }
+    for (const bad of [
+      { ...marker, id: '' },
+      { ...marker, label: '' },
+      { ...marker, x: -1 },
+      { ...marker, x: NaN },
+      { ...marker, x: Infinity },
+    ]) {
+      expect(() =>
+        prepareComparisonChart({ ...propsFor([0]), markers: [bad] }),
+      ).toThrow(/markers require/)
+    }
+    expect(() =>
+      prepareComparisonChart({ ...propsFor([0]), markers: [marker, marker] }),
+    ).toThrow(/markers require/)
+  })
   it('routes singleton series to the keyed point renderer without adding synthetic points', () => {
     const chart = prepareComparisonChart(propsFor([0]))
     expect(chart.hasSingletonSeries).toBe(true)
@@ -112,6 +173,38 @@ describe('comparison chart presentation data', () => {
     expect(chart.data.lineChartData?.[0]?.data).toHaveLength(1201)
     expect(chart.xMaxValue).toBe(1200)
     expect(chart.tickValues).toEqual([0, 600, 1200])
+  })
+
+  it('gives three or more series distinct strokes and preserves styles when filtered', () => {
+    const props = propsFor([0, 10])
+    const series = Array.from({ length: 6 }, (_, index) => ({
+      id: String(index),
+      label: `Account ${index}`,
+      styleIndex: index,
+      points: props.series[0]!.points,
+    }))
+    const all = prepareComparisonChart({ ...props, series })
+    const filtered = prepareComparisonChart({ ...props, series: [series[2]!] })
+    const lines = all.data.lineChartData
+    expect(
+      new Set(lines.map((line) => line.lineOptions.strokeDasharray)).size,
+    ).toBe(6)
+    expect(filtered.data.lineChartData[0]).toEqual(lines[2])
+  })
+
+  it('formats fractional-year callouts without changing monthly point coordinates', () => {
+    const props = propsFor([0])
+    const chart = prepareComparisonChart({
+      ...props,
+      xLabel: 'Years since plan start',
+      formatXValue: () => '1 year, 1 month (month 13)',
+      series: [{ id: 'a', label: 'A', points: [{ x: 13 / 12, y: 100 }] }],
+    })
+    expect(chart.data.lineChartData[0]?.data[0]).toMatchObject({
+      x: 13 / 12,
+      y: 100,
+      xAxisCalloutData: 'Years since plan start: 1 year, 1 month (month 13)',
+    })
   })
 
   it('keeps short projection axes on integer months without duplicate ticks', () => {

@@ -1,4 +1,6 @@
 import { runGrowthProjection } from '../../../domain/growth'
+import { parseMoney, parsePercentage } from '../../../shared/numbers'
+export { formatMoney } from '../../../shared/numbers'
 import type {
   GrowthInput,
   ProjectionOutcome,
@@ -109,25 +111,12 @@ function readMoney(
   field: keyof GrowthInput,
   errors: ValidationIssue[],
 ) {
-  const text = value.trim()
-  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) {
-    errors.push({
-      field,
-      message:
-        'Enter nonnegative dollars with up to two decimal places, without commas or currency symbols.',
-    })
+  const parsed = parseMoney(value)
+  if (!parsed.ok) {
+    errors.push({ field, message: parsed.error })
     return undefined
   }
-  const [whole, fraction = ''] = text.split('.')
-  const amount = Number(whole) * 100 + Number(fraction.padEnd(2, '0'))
-  if (!Number.isSafeInteger(amount)) {
-    errors.push({
-      field,
-      message: 'This amount exceeds the supported numeric range.',
-    })
-    return undefined
-  }
-  return amount
+  return parsed.value
 }
 
 function readRate(
@@ -135,19 +124,12 @@ function readRate(
   field: keyof GrowthInput,
   errors: ValidationIssue[],
 ) {
-  const text = value.trim()
-  if (
-    !/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text) ||
-    !Number.isFinite(Number(text))
-  ) {
-    errors.push({
-      field,
-      message:
-        'Enter a finite percentage, such as 5 or 0.20, without a percent sign.',
-    })
+  const parsed = parsePercentage(value)
+  if (!parsed.ok) {
+    errors.push({ field, message: parsed.error })
     return undefined
   }
-  return Number(text) / 100
+  return parsed.value
 }
 
 export function evaluateScenario(
@@ -202,23 +184,4 @@ export function evaluateScenario(
     })
   }
   return errors.length ? { ok: false, errors } : runGrowthProjection(input)
-}
-
-const currency = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-})
-export function formatMoney(cents: number): string {
-  const amount = BigInt(cents)
-  const whole = amount / 100n
-  const fraction = (amount < 0n ? -amount : amount) % 100n
-  // Avoid losing a cent when converting large integer amounts to floating dollars.
-  return currency
-    .formatToParts(whole === 0n && amount < 0n ? -0 : whole)
-    .map((part) =>
-      part.type === 'fraction'
-        ? fraction.toString().padStart(2, '0')
-        : part.value,
-    )
-    .join('')
 }

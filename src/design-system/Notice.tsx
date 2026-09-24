@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { makeStyles, mergeClasses, tokens } from '@fluentui/react-components'
 
 const useStyles = makeStyles({
@@ -24,12 +24,32 @@ const useStyles = makeStyles({
 export type NoticeProps = {
   children: ReactNode
   tone?: 'info' | 'error'
+  hidden?: boolean
+  focusRequest?: number | undefined
 }
 
-export function Notice({ children, tone = 'info' }: NoticeProps) {
+export function Notice({
+  children,
+  tone = 'info',
+  hidden = false,
+  focusRequest,
+}: NoticeProps) {
   const styles = useStyles()
+  const element = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (
+      focusRequest !== undefined &&
+      element.current &&
+      !element.current.hidden
+    ) {
+      element.current.focus()
+    }
+  }, [focusRequest])
   return (
     <div
+      ref={element}
+      hidden={hidden}
+      tabIndex={focusRequest === undefined ? undefined : -1}
       className={mergeClasses(styles.notice, tone === 'error' && styles.error)}
       role={tone === 'error' ? 'alert' : 'status'}
       aria-atomic="true"

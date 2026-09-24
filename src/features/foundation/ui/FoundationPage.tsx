@@ -13,6 +13,8 @@ import {
   Text,
   Tabs,
   YearNavigator,
+  TextField,
+  ScheduleTimeline,
   type IconName,
 } from '@ui'
 
@@ -56,6 +58,8 @@ export function FoundationPage({
   previewYear,
   onPreviewYearChange,
   previewActive,
+  previewText,
+  onPreviewTextChange,
 }: {
   filledIcons: boolean
   onToggleIcons: () => void
@@ -63,6 +67,8 @@ export function FoundationPage({
   previewYear: number
   onPreviewYearChange: (year: number) => void
   previewActive: boolean
+  previewText: string
+  onPreviewTextChange: (value: string) => void
 }) {
   return (
     <Stack>
@@ -126,6 +132,48 @@ export function FoundationPage({
           </Text>
         </Panel>
       </Grid>
+      <Panel title="Schedule and text patterns" icon="components">
+        <Heading level={3}>Labeled text entry</Heading>
+        <TextField
+          label="Preview label"
+          value={previewText}
+          onChange={onPreviewTextChange}
+          hint="Text remains a draft; the calling model owns validation."
+        />
+        <Grid>
+          <TextField
+            label="Field without a caption"
+            value={previewText}
+            onChange={onPreviewTextChange}
+          />
+          <TextField
+            label="Field with a caption"
+            value={previewText}
+            onChange={onPreviewTextChange}
+            hint="Captions can wrap and increase the row height without stretching neighboring labels or inputs."
+          />
+        </Grid>
+        <ScheduleTimeline
+          label="Illustrative duration timeline"
+          total={24}
+          items={[
+            {
+              id: 'first',
+              label: 'First stage',
+              start: 0,
+              end: 6,
+              detail: 'Months 0 to 6',
+            },
+            {
+              id: 'second',
+              label: 'Second stage',
+              start: 6,
+              end: 24,
+              detail: 'Months 6 to 24',
+            },
+          ]}
+        />
+      </Panel>
       <Panel title="Shared comparison patterns" icon="components">
         <Text muted>
           Selection groups, optional details, exact navigation, and charts share
@@ -156,6 +204,20 @@ export function FoundationPage({
             yLabel="Example units"
             series={previewSeries}
             formatValue={String}
+            markers={[
+              {
+                id: 'start',
+                x: 0,
+                label: 'First stage',
+                detail: 'Starts at period 0.',
+              },
+              {
+                id: 'next',
+                x: 1,
+                label: 'Second stage',
+                detail: 'Starts at period 1.',
+              },
+            ]}
           />
         )}
         <DataTable

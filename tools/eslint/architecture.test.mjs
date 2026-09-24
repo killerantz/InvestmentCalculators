@@ -21,6 +21,10 @@ const boundaryError = { messageId: 'boundary' }
 
 tester.run('boundaries', boundaries, {
   valid: [
+    {
+      filename: file('src/features/example/model/useExample.ts'),
+      code: "import { formatMoney } from '../../../shared/numbers'",
+    },
     { filename: view, code: "import { Button } from '@ui'" },
     { filename: view, code: "import type { Result } from '../model/types'" },
     { filename: view, code: "import type { ReactNode } from 'react'" },
@@ -47,6 +51,21 @@ tester.run('boundaries', boundaries, {
     },
   ],
   invalid: [
+    {
+      filename: view,
+      code: "import { formatMoney } from '../../../shared/numbers'",
+      errors: [boundaryError],
+    },
+    {
+      filename: file('src/shared/numbers.ts'),
+      code: "import { Example } from '@features/example'",
+      errors: [boundaryError],
+    },
+    {
+      filename: file('src/shared/numbers.ts'),
+      code: "import { useState } from 'react'",
+      errors: [boundaryError],
+    },
     {
       filename: view,
       code: "import { LineChart } from '@fluentui/react-charts'",
@@ -162,6 +181,7 @@ const imports = `
 `
 tester.run('token-styles', tokenStyles, {
   valid: [
+    `${imports} makeStyles({ root: { display: 'grid', alignContent: 'start' } })`,
     `${imports} makeStyles({ root: { color: tokens.colorNeutralForeground1, padding: tokens.spacingHorizontalM, maxWidth: appTokens.contentWidth, display: 'flex', margin: 0 } })`,
     `${imports} makeStyles({ root: { ':hover': { color: tokens.colorBrandForeground1 } } })`,
     "import { makeStyles as styles, tokens as t } from '@fluentui/react-components'; styles({ root: { color: t.colorNeutralForeground1 } })",

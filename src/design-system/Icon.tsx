@@ -7,6 +7,10 @@ import {
   ChevronRight24Regular,
   ArrowEnterLeft24Filled,
   ArrowEnterLeft24Regular,
+  ArrowUp24Filled,
+  ArrowUp24Regular,
+  ArrowDown24Filled,
+  ArrowDown24Regular,
   Color24Filled,
   Color24Regular,
   Grid24Filled,
@@ -26,6 +30,8 @@ const icons = {
   previous: bundleIcon(ChevronLeft24Filled, ChevronLeft24Regular),
   next: bundleIcon(ChevronRight24Filled, ChevronRight24Regular),
   go: bundleIcon(ArrowEnterLeft24Filled, ArrowEnterLeft24Regular),
+  up: bundleIcon(ArrowUp24Filled, ArrowUp24Regular),
+  down: bundleIcon(ArrowDown24Filled, ArrowDown24Regular),
 }
 
 export type IconName = keyof typeof icons

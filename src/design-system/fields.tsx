@@ -9,6 +9,7 @@ import {
 const useStyles = makeStyles({
   field: {
     minWidth: 0,
+    alignContent: 'start',
     overflowWrap: 'anywhere',
     '& > *': {
       minWidth: 0,
@@ -20,21 +21,26 @@ const useStyles = makeStyles({
   },
 })
 
-export type NumberFieldProps = {
+export type TextFieldProps = {
   label: string
   value: string
   onChange: (value: string) => void
   hint?: string
   error?: string
+  disabled?: boolean
 }
 
-export function NumberField({
+export type NumberFieldProps = TextFieldProps
+
+export function TextField({
   label,
   value,
   onChange,
   hint,
   error,
-}: NumberFieldProps) {
+  disabled,
+  inputMode = 'text',
+}: TextFieldProps & { inputMode?: 'text' | 'decimal' }) {
   const styles = useStyles()
   return (
     <Field
@@ -48,12 +54,17 @@ export function NumberField({
       <Input
         className={styles.control}
         type="text"
-        inputMode="decimal"
+        inputMode={inputMode}
         value={value}
+        disabled={disabled}
         onChange={(_, data) => onChange(data.value)}
       />
     </Field>
   )
+}
+
+export function NumberField(props: NumberFieldProps) {
+  return <TextField {...props} inputMode="decimal" />
 }
 
 export type ChoiceFieldProps = {
@@ -62,6 +73,8 @@ export type ChoiceFieldProps = {
   onChange: (value: string) => void
   options: readonly { value: string; label: string }[]
   hint?: string
+  error?: string
+  disabled?: boolean
 }
 
 export function ChoiceField({
@@ -70,6 +83,8 @@ export function ChoiceField({
   onChange,
   options,
   hint,
+  error,
+  disabled,
 }: ChoiceFieldProps) {
   const styles = useStyles()
   return (
@@ -78,11 +93,14 @@ export function ChoiceField({
       orientation="vertical"
       label={label}
       hint={hint ?? null}
+      validationMessage={error ?? null}
+      validationState={error ? 'error' : 'none'}
     >
       <Select
         className={styles.control}
         select={{ className: styles.control }}
         value={value}
+        disabled={disabled}
         onChange={(_, data) => onChange(data.value)}
       >
         {options.map((option) => (

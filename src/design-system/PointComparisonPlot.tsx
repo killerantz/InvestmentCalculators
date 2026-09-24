@@ -114,6 +114,33 @@ export function PointComparisonPlot({
               {tick}
             </text>
           ))}
+          {chart.markers.map((marker) => (
+            <g
+              key={marker.id}
+              role="img"
+              aria-label={`${marker.number}. ${marker.label}. ${marker.detail}`}
+            >
+              <title>
+                {marker.label}. {marker.detail}
+              </title>
+              <line
+                className={styles.grid}
+                x1={scaleX(marker.x)}
+                x2={scaleX(marker.x)}
+                y1={bottom - appTokens.chartMarkerOffset}
+                y2={bottom}
+                strokeDasharray={appTokens.chartDashedLine}
+              />
+              <text
+                className={styles.label}
+                x={scaleX(marker.x)}
+                y={bottom - appTokens.chartMarkerOffset}
+                textAnchor={marker.x === xMinValue ? 'start' : 'middle'}
+              >
+                {marker.number}
+              </text>
+            </g>
+          ))}
           {data.lineChartData.map((line, index) => (
             <g key={line.legend}>
               {line.data.length > 1 && (

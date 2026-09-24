@@ -26,6 +26,10 @@ const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase500,
     lineHeight: tokens.lineHeightBase500,
   },
+  subsection: {
+    fontSize: tokens.fontSizeBase400,
+    lineHeight: tokens.lineHeightBase400,
+  },
 })
 
 export function Heading({
@@ -33,18 +37,22 @@ export function Heading({
   id,
   children,
 }: {
-  level: 1 | 2
+  level: 1 | 2 | 3
   id?: string
   children: ReactNode
 }) {
   const styles = useStyles()
-  const Tag = level === 1 ? 'h1' : 'h2'
+  const Tag = level === 1 ? 'h1' : level === 2 ? 'h2' : 'h3'
   return (
     <Tag
       id={id}
       className={mergeClasses(
         styles.heading,
-        level === 1 ? styles.title : styles.section,
+        level === 1
+          ? styles.title
+          : level === 2
+            ? styles.section
+            : styles.subsection,
       )}
     >
       {children}

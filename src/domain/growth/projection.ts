@@ -6,14 +6,12 @@ import type {
   ValidationIssue,
 } from './types'
 import { validateGrowthInput } from './validation'
-
-class NumericRangeError extends Error {}
-
-function cents(value: number): number {
-  const rounded = Math.sign(value) * Math.round(Math.abs(value))
-  if (!Number.isSafeInteger(rounded)) throw new NumericRangeError()
-  return rounded === 0 ? 0 : rounded
-}
+import {
+  cents,
+  effectiveMonthlyRate,
+  inflationFactor,
+  NumericRangeError,
+} from '../numeric'
 
 const flowFields = [
   'contributionsCents',
@@ -59,7 +57,7 @@ export function runGrowthProjection(input: unknown): ProjectionOutcome {
   const assumptions = { ...input }
   const monthly: MonthlyRow[] = []
   const annual: AnnualRow[] = []
-  const monthlyReturn = Math.expm1(Math.log1p(input.annualReturnRate) / 12)
+  const monthlyReturn = effectiveMonthlyRate(input.annualReturnRate)
   let balance = input.startingBalanceCents
   let firstShortfallMonth: number | null = null
   try {
@@ -86,11 +84,7 @@ export function runGrowthProjection(input: unknown): ProjectionOutcome {
       const shortfall = input.monthlyWithdrawalCents - withdrawn
       if (shortfall > 0 && firstShortfallMonth === null)
         firstShortfallMonth = month
-      const inflationFactor = Math.exp(
-        (Math.log1p(input.annualInflationRate) * month) / 12,
-      )
-      if (!Number.isFinite(inflationFactor) || inflationFactor <= 0)
-        throw new NumericRangeError()
+      const discount = inflationFactor(input.annualInflationRate, month)
       monthly.push({
         month,
         openingBalanceCents: opening,
@@ -99,11 +93,11 @@ export function runGrowthProjection(input: unknown): ProjectionOutcome {
         withdrawalsCents: withdrawn,
         shortfallCents: shortfall,
         growthCents: growth,
-        realGrowthCents: cents(growth / inflationFactor),
+        realGrowthCents: cents(growth / discount),
         fundFeesCents: fundFee,
         advisoryFeesCents: advisoryFee,
         closingBalanceCents: balance,
-        realClosingBalanceCents: cents(balance / inflationFactor),
+        realClosingBalanceCents: cents(balance / discount),
       })
     }
     for (let offset = 0; offset < monthly.length; offset += 12) {

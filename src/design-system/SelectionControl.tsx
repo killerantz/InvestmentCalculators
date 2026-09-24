@@ -1,4 +1,11 @@
-import { ToggleButton, makeStyles, tokens } from '@fluentui/react-components'
+import {
+  Field,
+  Radio,
+  RadioGroup,
+  makeStyles,
+  mergeClasses,
+  tokens,
+} from '@fluentui/react-components'
 
 const useStyles = makeStyles({
   group: {
@@ -10,6 +17,27 @@ const useStyles = makeStyles({
   option: {
     minWidth: 0,
     overflowWrap: 'anywhere',
+    borderRadius: tokens.borderRadiusMedium,
+    borderTopWidth: tokens.strokeWidthThin,
+    borderRightWidth: tokens.strokeWidthThin,
+    borderBottomWidth: tokens.strokeWidthThin,
+    borderLeftWidth: tokens.strokeWidthThin,
+    borderTopStyle: 'solid',
+    borderRightStyle: 'solid',
+    borderBottomStyle: 'solid',
+    borderLeftStyle: 'solid',
+    borderTopColor: tokens.colorNeutralStroke1,
+    borderRightColor: tokens.colorNeutralStroke1,
+    borderBottomColor: tokens.colorNeutralStroke1,
+    borderLeftColor: tokens.colorNeutralStroke1,
+  },
+  selected: {
+    backgroundColor: tokens.colorBrandBackground2,
+    borderTopColor: tokens.colorBrandStroke1,
+    borderRightColor: tokens.colorBrandStroke1,
+    borderBottomColor: tokens.colorBrandStroke1,
+    borderLeftColor: tokens.colorBrandStroke1,
+    fontWeight: tokens.fontWeightSemibold,
   },
 })
 
@@ -28,19 +56,31 @@ export function SelectionControl({
 }: SelectionControlProps) {
   const styles = useStyles()
   return (
-    <div role="group" aria-label={label} className={styles.group}>
-      {options.map((option) => (
-        <ToggleButton
-          key={option.value}
-          type="button"
-          className={styles.option}
-          checked={value === option.value}
-          aria-pressed={value === option.value}
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-        </ToggleButton>
-      ))}
-    </div>
+    <Field label={label}>
+      <RadioGroup
+        className={styles.group}
+        layout="horizontal"
+        value={value}
+        onChange={(_, data) => {
+          if (!options.some((option) => option.value === data.value))
+            throw new Error(
+              'SelectionControl received an unsupported selection.',
+            )
+          onChange(data.value)
+        }}
+      >
+        {options.map((option) => (
+          <Radio
+            key={option.value}
+            className={mergeClasses(
+              styles.option,
+              value === option.value && styles.selected,
+            )}
+            value={option.value}
+            label={option.label}
+          />
+        ))}
+      </RadioGroup>
+    </Field>
   )
 }

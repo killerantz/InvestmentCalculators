@@ -38,6 +38,7 @@ const useStyles = makeStyles({
   between: {
     justifyContent: 'space-between',
   },
+  end: { alignItems: 'end' },
   grid: {
     display: 'grid',
     gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${appTokens.cardMinWidth}), 1fr))`,
@@ -98,13 +99,21 @@ export function ViewPanel({
 export function Row({
   children,
   spread = false,
+  align = 'center',
 }: {
   children: ReactNode
   spread?: boolean
+  align?: 'center' | 'end'
 }) {
   const styles = useStyles()
   return (
-    <div className={mergeClasses(styles.row, spread && styles.between)}>
+    <div
+      className={mergeClasses(
+        styles.row,
+        spread && styles.between,
+        align === 'end' && styles.end,
+      )}
+    >
       {children}
     </div>
   )

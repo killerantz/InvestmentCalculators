@@ -44,6 +44,20 @@ export function ComparisonChart(props: ComparisonChartProps) {
       ) : (
         <Notice>No comparison data available.</Notice>
       )}
+      {!!props.markers?.length && (
+        <div>
+          <Text emphasis>{props.markerLabel ?? 'Timeline markers'}</Text>
+          <ol
+            aria-label={`${props.title}: ${props.markerLabel ?? 'Timeline markers'}`}
+          >
+            {props.markers.map((marker) => (
+              <li key={marker.id}>
+                {marker.label}. {marker.detail}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </section>
   )
 }

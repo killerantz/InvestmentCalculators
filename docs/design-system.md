@@ -65,24 +65,64 @@ The growth worksheet exercises `NumberField`, `ChoiceField`, `Notice`, and `Data
 These components own labels, error presentation, keyboard behavior, semantic table
 markup, and token-based styling. They contain no financial parsing or formulas.
 `NumberField` passes text to its caller so unfinished input is not silently coerced to zero.
+`TextField` uses the same Fluent field wrapper and error presentation without a numeric
+keyboard hint. `ChoiceField` also accepts an error message. Text, number, and choice
+fields accept `disabled`, passed to their native Fluent control; keep a hint explaining
+why a dependent choice cannot be edited. Use these wrappers rather than
+duplicating input layout. `Heading` supports levels 1-3 for nested account sections.
+Field content is packed at the start of its grid area. A caption or validation
+message increases the parent row height without stretching an adjacent field's
+label and input rows. The foundation preview includes side-by-side fields with
+and without captions to check this behavior.
 
 Tables expose captions and column headers, and scroll inside a labeled focusable region
 on narrow screens. The feature model provides formatted strings; the UI does not
 round money or assemble annual summaries. Monthly ledgers show one projection year
 at a time rather than rendering an entire long-horizon monthly history.
+The phased financial report reuses these controls for household, account, and
+individual income ledgers. Account selection, metric selection, and dollar basis
+are presentation state; the deterministic engine supplies all financial amounts.
+Withdrawal-order editing uses checked inclusion plus curated up/down icon buttons,
+with account-specific accessible names. No drag-only interaction is required.
 
 App navigation keeps the worksheet mounted in `ViewPanel` while the foundation preview
 is visible. Drafts survive that navigation but are not persisted across reloads.
+The life-phase planner also stays mounted across application navigation. Its section tabs
+unmount inactive content while drafts remain in its feature model.
+`Row` supports bottom alignment for labeled fields beside action buttons.
+`ConfirmDialog` wraps Fluent's modal focus management for destructive confirmations;
+Cancel and Escape dismiss without executing the action. This replaces confirmations
+rendered far above the button that initiated them.
+The foundation preview includes a non-destructive confirmation example.
+`Notice` can receive an explicit focus-request counter for a validation summary.
+Keep the summary mounted and hidden when empty so normal field edits do not repeatedly
+move focus away from the user's input.
+
+`ScheduleTimeline` accepts ordered whole-month intervals, labels, and a duration.
+It renders a token-styled proportional SVG band, numbered labels, and a text legend.
+Narrow screens scroll the visual inside a labeled focusable region; numbers and text
+identify phases without relying on color. The planner supplies a corresponding exact
+boundary table. This component displays durations, not balances or financial trends.
+The legend is optional when a table provides the same details. Axis labels can be
+supplied by the feature model; interval coordinates remain monthly. Phase numbering
+and native SVG tooltips remain available when the legend is hidden.
+The foundation preview includes text entry and a synthetic duration timeline.
 
 ## Comparison primitives
 
-`SelectionControl` exposes a labeled group of mutually exclusive toggle buttons,
-with pressed states rather than tab semantics without associated tab panels.
+`SelectionControl` exposes a visibly labeled group of mutually exclusive Fluent radios.
+The selected option has a filled radio indicator, an accent border, a tinted background,
+and stronger text. Arrow keys move the selection within the group; each group has
+its own value. Use checkboxes instead when multiple choices can be selected.
 `Tabs` wraps Fluent's tab list and links each tab to its own panel. It owns keyboard
 navigation, selected-state semantics, and a token-based selected background alongside
 Fluent's active indicator. The yearly/monthly ledgers use this pattern; chart settings
 remain selection groups. Only the selected panel's content is mounted, so keep state
 that must survive tab changes in the feature model.
+An optional Next action at the bottom advances through the supplied tabs and focuses
+and scrolls to the next panel. Ordinary tab clicks and arrow-key navigation retain
+Fluent's focus behavior. The planner uses this sequence without blocking access to
+other sections when a draft is incomplete.
 `CheckboxField` exposes a labeled boolean choice. `YearNavigator` combines a
 whole-year slider with an exact input and Previous, Next, and Go icon buttons on one
 nonwrapping row. The input is sized for three digits and accepts at most three
@@ -95,8 +135,18 @@ These components manage presentation interactions, not projection or financial r
 Only the design system may import that package. Its public API accepts labels,
 numeric points, and a value formatter, not Fluent styling props or financial inputs.
 Chart colors, dimensions, and line treatments belong to the design-system tokens.
-The two series use distinct line treatments as well as labels; color alone is not
-the identifier. The chart implementation loads lazily with a visible loading state.
+Series use distinct line treatments as well as labels; color alone is not the
+identifier. An optional stable style index preserves a line's treatment when other
+series are hidden. An optional horizontal-value formatter provides readable callouts
+for fractional-year coordinates without rounding away monthly points.
+Optional numeric timeline markers use the same horizontal coordinates as the series.
+Numbered annotations and short dashed stems mark their positions on the time axis;
+a text key preserves full labels and details without crowding the plot. The key heading
+is supplied by the feature. Markers also render in the singleton point fallback.
+Marker coordinates extend the horizontal domain when necessary but never add financial
+points or change vertical bounds. Use numeric annotations, not Fluent's date-only
+event annotation API, for elapsed-time axes.
+The chart implementation loads lazily with a visible loading state.
 The worksheet supplies an optional exact-data table as an accessible alternative.
 An error boundary isolates chart-load or rendering failures, logs the error, and
 shows an alert without removing the surrounding financial tables.

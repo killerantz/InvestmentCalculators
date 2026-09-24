@@ -21,7 +21,7 @@ export default function ComparisonChartPlot(props: ComparisonChartProps) {
   const container = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   const chart = useMemo(() => prepareComparisonChart(props), [props])
-  const { hasSingletonSeries, ...lineChartProps } = chart
+  const { hasSingletonSeries } = chart
 
   useEffect(() => {
     const element = container.current
@@ -53,7 +53,13 @@ export default function ComparisonChartPlot(props: ComparisonChartProps) {
           />
         ) : (
           <LineChart
-            {...lineChartProps}
+            data={chart.data}
+            annotations={chart.annotations}
+            xMinValue={chart.xMinValue}
+            xMaxValue={chart.xMaxValue}
+            yMinValue={chart.yMinValue}
+            yMaxValue={chart.yMaxValue}
+            tickValues={chart.tickValues}
             width={width}
             xAxisTitle={props.xLabel}
             yAxisTitle={props.yLabel}

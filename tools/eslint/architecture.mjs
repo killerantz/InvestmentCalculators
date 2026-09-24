@@ -45,6 +45,7 @@ export const boundaries = {
     if (!file.startsWith(sourceRoot)) return {}
     const inDesignSystem = file.startsWith('src/design-system/')
     const inDomain = file.startsWith('src/domain/')
+    const inShared = file.startsWith('src/shared/')
     const feature = featureName(file)
     const inView = Boolean(feature && file.includes('/ui/'))
 
@@ -66,6 +67,9 @@ export const boundaries = {
           'global resets and palette belong in index.html; component styles use Griffel'
       } else if (inDomain && !target.startsWith('src/domain/')) {
         reason = 'domain modules may depend only on other domain modules'
+      } else if (inShared && !target.startsWith('src/shared/')) {
+        reason =
+          'shared presentation utilities must remain independent of application layers'
       } else if (inDesignSystem) {
         if (
           !target.startsWith('src/design-system/') &&
@@ -95,6 +99,9 @@ export const boundaries = {
       } else if (inView && target.startsWith('src/domain/')) {
         reason =
           'views receive prepared values and callbacks; call domain logic from the feature model'
+      } else if (inView && target.startsWith('src/shared/') && !typeOnly) {
+        reason =
+          'views receive prepared values; use shared utilities from the feature model'
       } else if (
         inView &&
         target.startsWith(`src/features/${feature}/`) &&
@@ -171,6 +178,7 @@ const structuralValues = {
   flexDirection: ['row', 'column'],
   flexWrap: ['wrap', 'nowrap'],
   alignItems: ['center', 'start', 'end', 'stretch'],
+  alignContent: ['start'],
   justifyContent: ['center', 'space-between', 'start', 'end'],
   flexShrink: [0],
   minWidth: [0],

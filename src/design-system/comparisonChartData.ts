@@ -1,5 +1,9 @@
 import { tokens } from '@fluentui/react-components'
-import type { ChartProps, LineChartPoints } from '@fluentui/react-charts'
+import type {
+  ChartAnnotation,
+  ChartProps,
+  LineChartPoints,
+} from '@fluentui/react-charts'
 import type { ComparisonChartProps } from './ComparisonChart.types'
 import { appTokens } from './theme/tokens'
 
@@ -9,6 +13,8 @@ export function prepareComparisonChart({
   yLabel,
   series,
   formatValue,
+  formatXValue = String,
+  markers = [],
 }: ComparisonChartProps) {
   const ids = new Set<string>()
   const labels = new Set<string>()
@@ -18,6 +24,11 @@ export function prepareComparisonChart({
   let yMax = -Infinity
 
   const lines = series.map((item, index) => {
+    const styleIndex = item.styleIndex ?? index
+    if (!Number.isSafeInteger(styleIndex) || styleIndex < 0)
+      throw new Error(
+        'ComparisonChart style indices must be nonnegative safe integers.',
+      )
     if (!item.id || ids.has(item.id) || !item.label || labels.has(item.label)) {
       throw new Error(
         'ComparisonChart series must have unique, nonempty ids and labels.',
@@ -46,13 +57,14 @@ export function prepareComparisonChart({
       yMin = Math.min(yMin, y)
       yMax = Math.max(yMax, y)
       const formatted = formatValue(y)
+      const formattedX = formatXValue(x)
       return {
         x,
         y,
-        xAxisCalloutData: `${xLabel}: ${x}`,
+        xAxisCalloutData: `${xLabel}: ${formattedX}`,
         yAxisCalloutData: formatted,
         callOutAccessibilityData: {
-          ariaLabel: `${item.label}. ${xLabel}: ${x}. ${yLabel}: ${formatted}.`,
+          ariaLabel: `${item.label}. ${xLabel}: ${formattedX}. ${yLabel}: ${formatted}.`,
         },
       }
     })
@@ -60,15 +72,15 @@ export function prepareComparisonChart({
       legend: item.label,
       data,
       color:
-        index % 2 === 0
+        styleIndex % 2 === 0
           ? tokens.colorBrandForeground1
           : tokens.colorNeutralForeground2,
       lineOptions: {
         strokeWidth: appTokens.chartLineWidth,
         strokeDasharray:
-          index % 2 === 0
+          styleIndex === 0
             ? appTokens.chartSolidLine
-            : appTokens.chartDashedLine,
+            : `${appTokens.chartDashLength + (styleIndex - 1) * appTokens.chartDashStep} ${appTokens.chartDashGap}`,
       },
     } satisfies LineChartPoints
   })
@@ -76,6 +88,24 @@ export function prepareComparisonChart({
   if (!lines.length) {
     throw new Error('ComparisonChart requires at least one series.')
   }
+  const markerIds = new Set<string>()
+  const preparedMarkers = markers.map((marker, index) => {
+    if (
+      !marker.id ||
+      markerIds.has(marker.id) ||
+      !marker.label ||
+      !Number.isFinite(marker.x) ||
+      marker.x < 0
+    ) {
+      throw new Error(
+        'ComparisonChart markers require unique nonempty ids, labels and finite nonnegative coordinates.',
+      )
+    }
+    markerIds.add(marker.id)
+    xMin = Math.min(xMin, marker.x)
+    xMax = Math.max(xMax, marker.x)
+    return { ...marker, number: index + 1 }
+  })
   const padding = Math.max(
     (yMin === yMax ? Math.abs(yMin) : yMax - yMin) * 0.05,
     1,
@@ -100,6 +130,51 @@ export function prepareComparisonChart({
       : xMin + (xMax - xMin) / 2
 
   return {
+    markers: preparedMarkers,
+    annotations: preparedMarkers.map(
+      (marker) =>
+        ({
+          id: marker.id,
+          text: String(marker.number),
+          coordinates: {
+            type: 'mixed',
+            xCoordinateType: 'data',
+            yCoordinateType: 'relative',
+            x: marker.x,
+            y: 1,
+          },
+          layout: {
+            align:
+              marker.x === xMin
+                ? 'start'
+                : marker.x === xMax
+                  ? 'end'
+                  : 'center',
+            verticalAlign: 'bottom',
+            offsetY: -appTokens.chartMarkerOffset,
+            clipToBounds: true,
+          },
+          style: {
+            textColor: tokens.colorNeutralForeground1,
+            backgroundColor: tokens.colorNeutralBackground1,
+            borderColor: tokens.colorNeutralStroke1,
+            fontSize: tokens.fontSizeBase200,
+            fontWeight: tokens.fontWeightSemibold,
+          },
+          connector: {
+            arrow: 'none',
+            strokeColor: tokens.colorNeutralForeground2,
+            strokeWidth: appTokens.chartLineWidth,
+            dashArray: appTokens.chartDashedLine,
+            startPadding: 0,
+            endPadding: 0,
+          },
+          accessibility: {
+            role: 'img',
+            ariaLabel: `${marker.number}. ${marker.label}. ${marker.detail}`,
+          },
+        }) satisfies ChartAnnotation,
+    ),
     hasSingletonSeries: lines.some((line) => line.data.length === 1),
     data,
     xMinValue: xMin === xMax ? Math.max(0, xMin - 1) : xMin,
