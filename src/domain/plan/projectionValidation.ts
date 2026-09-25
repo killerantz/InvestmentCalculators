@@ -1,4 +1,6 @@
 import { compilePlan } from './compiler'
+import { parseTaxes } from './taxValidation'
+import { accountOrder } from './orderValidation'
 import type {
   AccountTransfer,
   IncomeStream,
@@ -226,6 +228,7 @@ export function parseProjectionInput(
       'withdrawalOrder',
       'phaseChanges',
       'annualInflationRate',
+      'taxes',
     ],
     errors,
   )
@@ -360,32 +363,8 @@ export function parseProjectionInput(
     })
   }
 
-  const order = (value: unknown, path: string, issues: PlanIssue[]) => {
-    const seen = new Set<string>()
-    return collection(
-      value,
-      path,
-      false,
-      (item, itemPath, itemIssues) => {
-        const id = text(item, itemPath, itemIssues)
-        if (id !== undefined) {
-          if (schedule && !accountIds.has(id))
-            itemIssues.push({
-              path: itemPath,
-              message: 'The referenced account does not exist.',
-            })
-          if (seen.has(id))
-            itemIssues.push({
-              path: itemPath,
-              message: 'Withdrawal order must not repeat an account.',
-            })
-          seen.add(id)
-        }
-        return id
-      },
-      issues,
-    )
-  }
+  const order = (value: unknown, path: string, issues: PlanIssue[]) =>
+    accountOrder(value, path, issues, schedule ? accountIds : undefined)
   const incomes = collection(fields.incomes, 'incomes', false, income, errors)
   const incomeIds = new Set<string>()
   const incomeLabels = new Set<string>()
@@ -500,6 +479,9 @@ export function parseProjectionInput(
       path: 'annualInflationRate',
       message: 'Enter a finite annual inflation rate greater than -1.',
     })
+  const taxes = Object.prototype.hasOwnProperty.call(fields, 'taxes')
+    ? parseTaxes(fields.taxes, schedule, incomes, errors)
+    : undefined
   if (
     errors.length > 0 ||
     !compiled.ok ||
@@ -523,6 +505,7 @@ export function parseProjectionInput(
       withdrawalOrder,
       phaseChanges,
       annualInflationRate,
+      ...(taxes === undefined ? {} : { taxes }),
     },
     schedule: compiled.plan,
   }

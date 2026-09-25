@@ -243,7 +243,7 @@ describe('phased household financial projection', () => {
     const value = input()
     value.schedule.horizonMonths = 14
     const result = project(value)
-    expect(result.engineVersion).toBe('plan-projection-1.3.0')
+    expect(result.engineVersion).toBe('plan-projection-1.5.0')
     const compiled = compilePlan(value.schedule)
     if (!compiled.ok) throw new Error('Expected compiled schedule')
     expect(result.schedule).toEqual(compiled.plan)

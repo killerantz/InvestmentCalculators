@@ -8,6 +8,7 @@ import {
   Notice,
   NumberField,
   Panel,
+  Row,
   Stack,
   Text,
   TextField,
@@ -59,7 +60,9 @@ export function PortfolioPlannerPage({
       </Notice>
       <Panel title="Projection and entered tax rates" icon="calculator">
         <Text muted>
-          Use 1–1200 total months. Calendar years must stay within 0001–9999.
+          Use 1–1200 total months. Calendar years must stay within 0001–9999.{' '}
+          Select the information button beside a field for an explanation and
+          examples. These buttons also work with keyboard and touch.
         </Text>
         <Fields fields={model.fields} />
       </Panel>
@@ -77,12 +80,15 @@ export function PortfolioPlannerPage({
           return. Distributions are additional cash, not deducted from modeled
           price. Between rebalances, reinvest only remaining after-tax
           distributions into their originating assets, or hold distributions in
-          cash until the next rebalance. Starting cash and external contribution
-          cash deploy only at a rebalance. At a rebalance, ALL remaining cash
+          cash until the next rebalance. Separately, choose to invest starting
+          cash and monthly contributions by target allocation each month, or
+          hold them until a rebalance. New accounts default to investing new
+          cash. Purchases happen at month-end after taxes; starting cash begins
+          earning investment returns the following month. Taxes use other cash
+          first, then new cash if needed. At a rebalance, ALL remaining cash
           (including retained distributions) funds target deficits. With no
-          rebalancing, contributions and held distributions remain cash. Cash
-          can pay tax but is not automatically routed to spending or the
-          life-phase planner.
+          rebalancing, cash set to hold remains uninvested. Cash can pay tax but
+          is not automatically routed to spending or the life-phase planner.
         </Text>
         <Text>
           Targets must total 100% of the invested asset sleeve, excluding cash.
@@ -112,11 +118,21 @@ export function PortfolioPlannerPage({
           {account.assets.map((asset) => (
             <Panel key={asset.id} title={asset.title} icon="calculator">
               <Fields fields={asset.fields} />
-              <Button onClick={asset.remove}>Remove asset</Button>
+              <Row spread>
+                <Button onClick={asset.duplicate}>Duplicate asset</Button>
+                <Button onClick={asset.remove}>Remove asset</Button>
+              </Row>
             </Panel>
           ))}
           <Button onClick={account.addAsset}>Add asset</Button>
-          <Button onClick={account.remove}>Remove account</Button>
+          <Text muted>
+            Asset copies keep their amounts and target allocation. Adjust the
+            targets to total 100% before calculating.
+          </Text>
+          <Row spread>
+            <Button onClick={account.duplicate}>Duplicate account</Button>
+            <Button onClick={account.remove}>Remove account</Button>
+          </Row>
         </Panel>
       ))}
       <Button onClick={model.addAccount}>Add brokerage account</Button>
@@ -135,14 +151,19 @@ export function PortfolioPlannerPage({
         <Stack>
           <Heading level={2}>Holdings and estimated tax outcomes</Heading>
           <DataTable {...model.report.summary} />
+          <Fields fields={model.chartFields} />
           <ComparisonChart {...model.report.chart} />
           <Text muted>
+            Each account has its own line by default. Choose uninvested cash to
+            see money not buying investments, or combine all holdings. Identical
+            account values overlap; use the detailed ledgers for exact values.{' '}
             Gross assets and equity overlap when all assessed taxes are paid;
             both already reflect cash paid for tax. Sales turnover is gross sale
             proceeds, not a return or an additional expense.
           </Text>
           <ChoiceField
             label="Inspect account or totals"
+            help="Choose one account or the sum of all holdings for the detailed ledgers below. This does not change your inputs or the projection."
             value={model.report.selectedAccount}
             options={model.report.accountOptions}
             onChange={model.selectAccount}
@@ -150,6 +171,7 @@ export function PortfolioPlannerPage({
           <DataTable {...model.report.annual} />
           <ChoiceField
             label="Inspect calendar year"
+            help="Choose which calendar year to show in the monthly and asset-detail tables. A partial year includes only months within your projection."
             value={model.report.selectedYear}
             options={model.report.yearOptions}
             onChange={model.selectYear}

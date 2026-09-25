@@ -1,15 +1,11 @@
 import { CheckboxField, IconButton, Notice, Row, Stack, Text } from '@ui'
-import type { WithdrawalOrderModel } from '../model/financeEditor'
+import type { WithdrawalOrderModel } from '../model/withdrawalOrderEditor'
 
 export function WithdrawalOrder({ model }: { model: WithdrawalOrderModel }) {
   return (
     <Stack>
       {model.error && <Notice tone="error">{model.error}</Notice>}
-      {model.empty && (
-        <Text>
-          No automatic withdrawals. Any remaining spending gap will be reported.
-        </Text>
-      )}
+      {model.empty && <Text>{model.emptyMessage}</Text>}
       {model.accounts.map((account) => (
         <Row key={account.id}>
           <CheckboxField

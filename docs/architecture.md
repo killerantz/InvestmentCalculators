@@ -52,14 +52,15 @@ instructions forward. It does not run the growth engine or calculate plan balanc
 ### Implemented portfolio-tax contract
 
 `runPortfolioProjection(unknown)`, exported by `domain/portfolio`, returns structured
-path/message errors or a `portfolio-1.0.0` result. The pure engine returns isolated
+path/message errors or a `portfolio-1.1.0` result. The pure engine returns isolated
 assumptions, monthly account and asset rows, calendar-year summaries, combined
 holdings totals, and rebalance, settlement, and tax-shortage events.
 
 Inputs specify a YYYY-MM start, 1-1200 months, entered ordinary-income,
 qualified-dividend and realized-gain rates, and taxable brokerage accounts.
 Accounts have starting cash, monthly external cash contributions, distribution
-handling, a rebalance policy, and stock/bond assets. Assets specify starting value,
+handling, an explicit `newCashMode` (`invest` or `hold`), a rebalance policy, and
+stock/bond assets. Assets specify starting value,
 pooled basis, invested-sleeve target weight, annual price growth, annual yield,
 and the qualified share of stock dividends. Bonds produce ordinary interest.
 Accounts are additive holdings, not alternative scenarios.
@@ -79,7 +80,8 @@ Monthly accounting order:
 5. Plan rebalance sales from pretrade invested-sleeve weights, then execute them.
 6. Settle net realized-gain tax in December or the final month and pay available cash.
 7. Buy target deficits after a rebalance, or reinvest remaining distributions into
-   their originating assets when reinvestment is selected.
+   their originating assets when reinvestment is selected and invest remaining
+   new cash by target weight when `newCashMode` is `invest`.
 
 Distribution cash is additional to modeled price growth, not deducted from asset
 value; a total-return assumption would double-count yield. Distributions and their
@@ -89,7 +91,16 @@ This is a planning approximation, not a universal tax-reporting basis election.
 
 Rebalancing is disabled, calendar-annual in December, or triggered by a monthly
 absolute percentage-point drift check. Targets apply to invested assets only.
-Starting cash and external contributions deploy only at a rebalance. A rebalance
+In `invest` mode, starting cash and monthly external contributions buy by target
+weight at month-end, after taxes, independently of dividend handling and rebalance
+triggers. New accounts default to this mode. `hold` preserves the earlier behavior:
+these dollars deploy only at a rebalance. Missing or invalid modes are rejected.
+The engine tracks new cash separately from retained payouts. Taxes consume other cash
+first, then reduce new cash available for purchases. Between rebalances, retained
+payouts stay in cash; reinvested payouts buy their originating assets, while new cash
+buys by target weight. Purchases add basis, generate no sales, and do not increment
+rebalance counts. First-month starting cash earns no investment return until after
+its month-end purchase. A rebalance
 uses all available post-tax cash, including distributions held between rebalances,
 for target-deficit purchases. Taxes may prevent exact target weights. Cash earns zero.
 
@@ -152,7 +163,7 @@ results still require explicit revalidation.
 
 `runPlanProjection(unknown)` accepts a `schedule` input plus `incomes`,
 `cashAccountId`, `monthlySpendingCents`, `withdrawalOrder`, `phaseChanges`,
-and `annualInflationRate`. Money is safe-integer USD cents; rates are decimal
+`annualInflationRate`, and optional `taxes`. Money is safe-integer USD cents; rates are decimal
 fractions. It returns structured errors or versioned monthly, annual, account,
 and household results. Invalid or overflowing calculations never return partial results.
 
@@ -170,7 +181,7 @@ order inherit across phases, including explicit zero spending or an empty order.
 Only selected accounts cover automatic spending gaps; no legal-access check is inferred.
 The surplus destination must be savings/cash, or the sole aggregate portfolio.
 
-Monthly events follow this order:
+With taxes disabled, monthly events follow this order:
 
 1. Apply phase instructions for that month and record opening balances.
 2. Accrue equivalent monthly growth and deduct the annual fee divided by 12.
@@ -202,7 +213,8 @@ reported without arrears. The input order defines priority and permits funds rec
 earlier in the month to fund later transfers. Destinations first earn growth on
 received funds the next month. Roth conversions require a traditional IRA/401k source
 and Roth IRA/401k destination owned by the same individual; these structural checks
-do not establish legal eligibility or calculate tax consequences.
+do not establish legal eligibility. The optional tax layer estimates ordinary
+income on conversions; without that layer, tax consequences are not calculated.
 
 Percentage transfers calculate an annual target from the source account's previous
 December closing balance, frozen for the calendar year and recalculated each January.
@@ -260,9 +272,9 @@ and source, and sums projected monthly contributions for entire-phase totals.
 An explicit zero remains a zero override. These deposits are external new money;
 using them for Roth conversions would incorrectly increase household wealth.
 Account-to-account transfers and Roth conversions use separate entries; no contribution
-is automatically reinterpreted or changed. Tax calculations remain outside the
-implemented contract. Reported income includes Social Security and pensions,
-not a calculation of taxable income or taxable conversion amounts.
+is automatically reinterpreted or changed. Reported income includes gross Social
+Security and pensions. Optional tax reports separately identify ordinary taxable
+income, qualified dividends, gains, and tax consequences of conversions.
 
 The report reuses design-system charts, tables, tabs, and year navigation. Edits
 clear the schedule and financial report together. Income removal uses the same
@@ -274,6 +286,62 @@ Existing unnamed drafts retain numbered fallback labels. Names are used consiste
 in errors, confirmations, previews, and reports; clearing an explicit name is invalid.
 Copies keep independent names, endpoints, and amount drafts. Removing the surplus account
 requires choosing a new destination rather than silently redirecting deposits.
+
+### Optional life-phase tax projection layer
+
+`PlanProjectionInput.taxes` enables estimated taxes without changing the schedule
+compiler or requiring tax inputs for existing plans. The feature stores independent
+optional drafts under `PlanDraft.taxes` and parses them only when enabled.
+The projection includes a separate `taxes` result only in enabled mode. Its monthly,
+projection-year, and total reports keep assessed tax, paid tax, and closing unpaid
+liability distinct. Unpaid liability is a closing stock, never a summed flow.
+
+Tax inputs contain three estimated fractional rates (`ordinaryRate`,
+`capitalGainsRate`, `qualifiedDividendRate`), brokerage account assumptions
+(`accountId`, `costBasisCents`, `annualDividendYield`, `qualifiedDividendShare`),
+income taxable shares (`incomeId`, `taxableShare`), and optional phase overrides.
+Optional `paymentOrder` lists preferred tax funding accounts; omission follows
+the current spending order. Entries in `phaseRates` may override `paymentOrder`:
+an omitted field inherits, an array replaces the preferred order, and `null`
+resumes following spending orders. Empty arrays use only the spending fallback.
+All lists require unique, existing account IDs. Draft copies and account removal
+preserve independent orders and remove stale references.
+Every taxable account requires explicit basis. Pensions may use a fully-taxable
+assumption; Social Security requires an entered 0-85% taxable share. Rates and
+phase overrides accept an explicit zero. Missing rates or basis do not silently
+imply a tax exemption. Aggregate portfolios are unsupported in tax-enabled mode.
+
+The existing growth input is total return. Estimated dividends are reinvested
+within that return, not added again as growth or spendable household cash.
+Gross dividends add brokerage basis and create estimated ordinary/qualified tax.
+External contributions and incoming cash transfers add basis. Brokerage outflows
+remove proportional pooled basis and recognize gains; positive gains are taxed
+per sale, with no loss offsets or carryforward. Savings positive growth is taxable
+ordinary interest. Traditional retirement outflows are ordinary income except
+same-owner traditional rollovers. Roth outflows are assumed qualified and tax-free;
+conversions are taxed once, not again as their transfer subtotal.
+
+Available income and scheduled withdrawals fund taxes first. With no separate
+order, combined spending/tax gap funding retains its earlier behavior. A separate
+order first funds existing tax shortfalls, then spending withdrawals create new
+tax bills funded by that preferred order. Each tax-funding pass falls back to the
+current spending withdrawal order when preferred funds run out. Tax-only accounts
+do not cover spending gaps. Account withdrawal totals accumulate across both uses.
+Each pass uses bounded cent-level gross-up, with at most one spending pass per
+eligible account; 100% tax rates cannot create an unbounded retry loop.
+Tax-shortfall liabilities persist into
+later months without interest or penalties; spending shortfalls still do not.
+Tax-paid amounts appear in the household ledger, so conservation is opening
+balances plus growth minus fees plus external contributions plus gross income,
+minus funded spending and taxes paid. Internal transfers cancel at household level.
+Actual post-tax December balances feed later percentage-transfer instructions.
+
+This is an estimated-rate planner, not a tax-return engine. There are no brackets,
+deductions, credits, state rules, after-tax traditional retirement basis, penalties,
+holding-period distinctions, Social Security eligibility calculations, or tax
+payment deadlines. It does not deduct potential liquidation tax on ending
+unrealized gains. The standalone portfolio engine remains a separate strategy
+tool with its own price-only return and calendar-year gain-settlement contract.
 
 ### Further account and timeline composition
 

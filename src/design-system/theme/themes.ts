@@ -9,6 +9,7 @@ const overrides = {
     '"Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif',
   fontFamilyMonospace: 'Consolas, "Courier New", Courier, monospace',
   borderRadiusMedium: '0.625rem',
+  borderRadiusNone: '0px',
   borderRadiusLarge: '1rem',
   shadow4: 'var(--cp-shadow-card)',
   colorNeutralBackground1: 'var(--cp-surface)',

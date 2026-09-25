@@ -5,6 +5,7 @@ import {
   NumericRangeError,
 } from '../numeric'
 import { parseProjectionInput } from './projectionValidation'
+import { PlanTaxLedger } from './taxes'
 import type {
   AccountAmounts,
   AccountMonthlyRow,
@@ -161,7 +162,8 @@ function annualInstallment(annualCents: number, calendarMonth: number): number {
 /**
  * End-month flows: external savings, scheduled-to-spending withdrawals,
  * account transfers/conversions, income, spending, gap funding, then surplus.
- * No taxes, withholding, eligibility assumptions or arrears.
+ * Optional estimated taxes are funded before spending; only unpaid taxes carry.
+ * No withholding or tax eligibility determination.
  * Real values use the global projection month and per-account cent rounding.
  * Any unsafe monetary intermediate or total rejects the entire projection.
  */
@@ -170,6 +172,9 @@ export function runPlanProjection(value: unknown): PlanProjectionOutcome {
   const parsed = parseProjectionInput(value, errors)
   if (!parsed) return { ok: false, errors }
   const { input, schedule } = parsed
+  const taxes = input.taxes
+    ? new PlanTaxLedger(input.taxes, input.schedule.accounts)
+    : undefined
   const balances = new Map(
     input.schedule.accounts.map((account) => [
       account.id,
@@ -213,6 +218,7 @@ export function runPlanProjection(value: unknown): PlanProjectionOutcome {
 
   try {
     for (const phase of schedule.phases) {
+      taxes?.enterPhase(phase.id)
       const change = changes.get(phase.id)
       spendingRequest = change?.monthlySpendingCents ?? spendingRequest
       withdrawalOrder = change?.withdrawalOrder ?? withdrawalOrder
@@ -225,6 +231,7 @@ export function runPlanProjection(value: unknown): PlanProjectionOutcome {
         const calendarIndex = startIndex + offset
         const calendarMonth = (calendarIndex % 12) + 1
         const discount = inflationFactor(input.annualInflationRate, month)
+        taxes?.beginMonth()
         const accounts: AccountMonthlyRow[] = phase.accounts.map(
           ({ accountId, settings }) => {
             const opening = required(balances.get(accountId))
@@ -256,6 +263,7 @@ export function runPlanProjection(value: unknown): PlanProjectionOutcome {
         const byId = new Map(
           accounts.map((account) => [account.accountId, account]),
         )
+        for (const account of accounts) taxes?.startAccount(account)
         const transfers: PlanTransferRow[] = transferRanges.map(
           ({ transfer, startOffset, endOffset }) => {
             if (offset < startOffset || offset >= endOffset)
@@ -298,6 +306,13 @@ export function runPlanProjection(value: unknown): PlanProjectionOutcome {
               source.closingBalanceCents,
             )
             const shortfallCents = requestedCents - amountCents
+            taxes?.withdraw(
+              source.accountId,
+              amountCents,
+              source.closingBalanceCents,
+              destination.accountId,
+            )
+            taxes?.deposit(destination.accountId, amountCents)
             source.closingBalanceCents -= amountCents
             destination.closingBalanceCents = cents(
               destination.closingBalanceCents + amountCents,
@@ -340,18 +355,34 @@ export function runPlanProjection(value: unknown): PlanProjectionOutcome {
           },
         )
         funds = cents(funds + incomeCents)
-        const fundedSpending = Math.min(funds, spendingRequest)
-        let gap = spendingRequest - fundedSpending
-        for (const accountId of withdrawalOrder) {
-          const account = required(byId.get(accountId))
-          const amount = Math.min(gap, account.closingBalanceCents)
-          account.automaticWithdrawalsCents = amount
-          account.closingBalanceCents -= amount
-          gap -= amount
-          if (gap === 0) break
+        let gap: number
+        let surplus: number
+        if (taxes) {
+          taxes.income(incomes)
+          const funding = taxes.fund(
+            funds,
+            spendingRequest,
+            withdrawalOrder,
+            byId,
+          )
+          gap = spendingRequest - funding.spending
+          surplus = funding.surplus
+        } else {
+          const fundedSpending = Math.min(funds, spendingRequest)
+          gap = spendingRequest - fundedSpending
+          for (const accountId of withdrawalOrder) {
+            const account = required(byId.get(accountId))
+            const amount = Math.min(gap, account.closingBalanceCents)
+            account.automaticWithdrawalsCents = amount
+            account.closingBalanceCents -= amount
+            gap -= amount
+            if (gap === 0) break
+          }
+          surplus = funds - fundedSpending
         }
         const cash = required(byId.get(input.cashAccountId))
-        cash.surplusDepositsCents = funds - fundedSpending
+        cash.surplusDepositsCents = surplus
+        taxes?.deposit(cash.accountId, surplus)
         cash.closingBalanceCents = cents(
           cash.closingBalanceCents + cash.surplusDepositsCents,
         )
@@ -380,6 +411,7 @@ export function runPlanProjection(value: unknown): PlanProjectionOutcome {
           incomes,
           transfers,
         })
+        taxes?.endMonth(month, required(monthly.at(-1)).calendarMonth, phase.id)
       }
     }
     for (let offset = 0; offset < monthly.length; offset += 12) {
@@ -395,13 +427,14 @@ export function runPlanProjection(value: unknown): PlanProjectionOutcome {
     return {
       ok: true,
       projection: {
-        engineVersion: 'plan-projection-1.3.0',
+        engineVersion: 'plan-projection-1.5.0',
         schedule,
         monthly,
         annual,
         totals: summarizePlan(monthly),
         accounts: summarizeAccounts(monthly),
         firstShortfallMonth,
+        ...(taxes ? { taxes: taxes.result() } : {}),
       },
     }
   } catch (error) {

@@ -21,6 +21,7 @@ import { financeDraft } from './financeDraft'
 import { usePlanReport } from './usePlanReport'
 import { transferEditor } from './transferEditor'
 import { historicalBalanceContext } from './transferPresentation'
+import { taxEditor } from './taxEditor'
 
 type Option = { value: string; label: string }
 export type { EditorField } from './editorFields'
@@ -156,7 +157,7 @@ export function usePlanEditor() {
         (v) => updateRate('annualRate', v),
         undefined,
         true,
-        'Effective annual return / APY already includes compounding. Do not compound it again.',
+        'Effective annual return / APY already includes compounding. Do not compound it again. With estimated taxes enabled, brokerage returns include reinvested dividends; do not add the dividend yield again.',
       ),
       ...(value.rateKind === 'nominal'
         ? [
@@ -438,6 +439,7 @@ export function usePlanEditor() {
   )
   return {
     finances,
+    taxes: taxEditor(plan, update, validationErrors),
     transfers: transferEditor(
       plan,
       update,
@@ -606,6 +608,7 @@ export function usePlanEditor() {
           draft.finance.incomes = draft.finance.incomes.filter(
             (income) => income.id !== pendingRemoval.id,
           )
+          if (draft.taxes) delete draft.taxes.incomeShares[pendingRemoval.id]
         }
       })
     },

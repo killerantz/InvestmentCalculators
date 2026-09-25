@@ -2,9 +2,23 @@ import {
   Checkbox,
   Field,
   Input,
+  InfoLabel,
   Select,
   makeStyles,
+  type LabelProps,
 } from '@fluentui/react-components'
+
+function fieldLabel(label: string, help?: string) {
+  return help
+    ? {
+        children: (_: unknown, props: LabelProps) => (
+          <InfoLabel {...props} info={help}>
+            {label}
+          </InfoLabel>
+        ),
+      }
+    : label
+}
 
 const useStyles = makeStyles({
   field: {
@@ -26,6 +40,7 @@ export type TextFieldProps = {
   value: string
   onChange: (value: string) => void
   hint?: string
+  help?: string
   error?: string
   disabled?: boolean
 }
@@ -37,6 +52,7 @@ export function TextField({
   value,
   onChange,
   hint,
+  help,
   error,
   disabled,
   inputMode = 'text',
@@ -46,7 +62,7 @@ export function TextField({
     <Field
       className={styles.field}
       orientation="vertical"
-      label={label}
+      label={fieldLabel(label, help)}
       hint={hint ?? null}
       validationMessage={error ?? null}
       validationState={error ? 'error' : 'none'}
@@ -73,6 +89,7 @@ export type ChoiceFieldProps = {
   onChange: (value: string) => void
   options: readonly { value: string; label: string }[]
   hint?: string
+  help?: string
   error?: string
   disabled?: boolean
 }
@@ -83,6 +100,7 @@ export function ChoiceField({
   onChange,
   options,
   hint,
+  help,
   error,
   disabled,
 }: ChoiceFieldProps) {
@@ -91,7 +109,7 @@ export function ChoiceField({
     <Field
       className={styles.field}
       orientation="vertical"
-      label={label}
+      label={fieldLabel(label, help)}
       hint={hint ?? null}
       validationMessage={error ?? null}
       validationState={error ? 'error' : 'none'}

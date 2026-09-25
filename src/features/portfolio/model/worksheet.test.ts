@@ -5,9 +5,252 @@ import {
   newAccount,
   newAsset,
   preparePortfolioReport,
+  portfolioChartMetricOptions,
+  duplicateAccount,
+  duplicateAsset,
+  uniqueId,
 } from './worksheet'
 
 describe('portfolio worksheet model', () => {
+  it('duplicates an account immediately after its source with independent assets and all settings', () => {
+    const draft = createPortfolioDraft()
+    const source = draft.accounts[0]!
+    source.startingCashCents = '10000'
+    source.monthlyContributionCents = '100'
+    source.newCashMode = 'hold'
+    source.distributionMode = 'retain'
+    source.rebalance = 'threshold'
+    source.driftThreshold = '7'
+    source.assets[0]!.targetWeight = '60'
+    source.assets.push({
+      ...newAsset('asset-2'),
+      targetWeight: '40',
+      marketValueCents: '200',
+      costBasisCents: '150',
+    })
+    draft.accounts.push(newAccount('account-2'))
+    const before = structuredClone(draft)
+    const duplicated = duplicateAccount(draft, source.id)
+    expect(draft).toEqual(before)
+    expect(duplicated.accounts.map((account) => account.id)).toEqual([
+      'account-1',
+      'account-3',
+      'account-2',
+    ])
+    const copy = duplicated.accounts[1]!
+    expect(copy).toEqual({
+      ...source,
+      id: 'account-3',
+      name: `${source.name} copy`,
+    })
+    expect(copy.assets).not.toBe(source.assets)
+    copy.assets[0]!.marketValueCents = '500'
+    copy.assets[1]!.name = 'Edited copied asset'
+    copy.startingCashCents = '5'
+    expect(draft).toEqual(before)
+    expect(evaluatePortfolio(duplicated).ok).toBe(true)
+  })
+
+  it('duplicates an asset without changing its source, other accounts, or allocation weights', () => {
+    const draft = createPortfolioDraft()
+    draft.accounts.push(newAccount('account-2'))
+    const before = structuredClone(draft)
+    const duplicated = duplicateAsset(draft, 'account-1', 'asset-1')
+    const source = duplicated.accounts[0]!.assets[0]!
+    const copy = duplicated.accounts[0]!.assets[1]!
+    expect(copy).toEqual({
+      ...source,
+      id: 'asset-2',
+      name: `${source.name} copy`,
+    })
+    expect(copy).not.toBe(source)
+    expect(duplicated.accounts[1]).toEqual(before.accounts[1])
+    expect(draft).toEqual(before)
+    const invalid = evaluatePortfolio(duplicated)
+    expect(invalid.ok).toBe(false)
+    if (!invalid.ok)
+      expect(invalid.errors.map((error) => error.path)).toContain(
+        'accounts[0].assets',
+      )
+    copy.targetWeight = '0'
+    copy.marketValueCents = '250'
+    expect(evaluatePortfolio(duplicated).ok).toBe(true)
+    expect(draft).toEqual(before)
+  })
+
+  it('preserves incomplete numeric drafts when duplicating instead of coercing or calculating them', () => {
+    const draft = createPortfolioDraft()
+    draft.accounts[0]!.startingCashCents = ''
+    draft.accounts[0]!.assets[0]!.annualPriceGrowthRate = '-'
+    const accountCopy = duplicateAccount(draft, 'account-1').accounts[1]!
+    expect(accountCopy.startingCashCents).toBe('')
+    expect(accountCopy.assets[0]!.annualPriceGrowthRate).toBe('-')
+    expect(
+      duplicateAsset(draft, 'account-1', 'asset-1').accounts[0]!.assets[1]!
+        .annualPriceGrowthRate,
+    ).toBe('-')
+  })
+
+  it('keeps identifiers unique across repeated duplication and gaps left by removals', () => {
+    let draft = createPortfolioDraft()
+    draft = duplicateAccount(draft, 'account-1')
+    draft = duplicateAccount(draft, 'account-1')
+    draft.accounts = draft.accounts.filter(
+      (account) => account.id !== 'account-2',
+    )
+    draft = duplicateAccount(draft, 'account-1')
+    expect(new Set(draft.accounts.map((account) => account.id)).size).toBe(3)
+    draft = duplicateAsset(draft, 'account-1', 'asset-1')
+    draft = duplicateAsset(draft, 'account-1', 'asset-1')
+    expect(draft.accounts[0]!.assets.map((asset) => asset.id)).toEqual([
+      'asset-1',
+      'asset-3',
+      'asset-2',
+    ])
+    expect(uniqueId('asset', ['asset-1', 'asset-3'])).toBe('asset-2')
+  })
+
+  it('reports missing duplication targets explicitly', () => {
+    const draft = createPortfolioDraft()
+    expect(() => duplicateAccount(draft, 'missing')).toThrow(
+      'Cannot duplicate missing account',
+    )
+    expect(() => duplicateAsset(draft, 'missing', 'asset-1')).toThrow(
+      'Cannot duplicate asset in missing account',
+    )
+    expect(() => duplicateAsset(draft, 'account-1', 'missing')).toThrow(
+      'Cannot duplicate missing asset',
+    )
+  })
+
+  it.each(portfolioChartMetricOptions)(
+    'charts separate accounts and their exact combined $label values',
+    ({ value: metric }) => {
+      const draft = createPortfolioDraft()
+      draft.years = '2'
+      draft.accounts[0]!.startingCashCents = '10000'
+      draft.accounts[0]!.monthlyContributionCents = '100'
+      const second = newAccount('account-2')
+      second.startingCashCents = '10000'
+      second.monthlyContributionCents = '100'
+      second.newCashMode = 'hold'
+      draft.accounts.push(second)
+      const outcome = evaluatePortfolio(draft)
+      if (!outcome.ok) throw new Error('Expected valid fixture')
+      const projection = outcome.projection
+      const report = preparePortfolioReport(
+        projection,
+        'account-2',
+        '2027',
+        'accounts',
+        metric,
+      )
+      expect(report.chart.series.map((series) => series.id)).toEqual([
+        'account-1',
+        'account-2',
+      ])
+      expect(report.chart.series.map((series) => series.label)).toEqual(
+        draft.accounts.map((account) => account.name),
+      )
+      expect(report.chart.series.map((series) => series.styleIndex)).toEqual([
+        0, 1,
+      ])
+      for (const [index, series] of report.chart.series.entries()) {
+        expect(series.points).toHaveLength(25)
+        expect(series.points[0]).toEqual({
+          x: 0,
+          y:
+            metric === 'endingCashCents'
+              ? 1_000_000
+              : metric === 'endingAssetsCents'
+                ? 100_000
+                : 1_100_000,
+        })
+        expect(series.points.slice(1)).toEqual(
+          projection.accounts[index]!.monthly.map((row) => ({
+            x: row.month,
+            y: row[metric],
+          })),
+        )
+      }
+      const combined = preparePortfolioReport(
+        projection,
+        'account-2',
+        '2027',
+        'total',
+        metric,
+      )
+      expect(combined.chart.series).toHaveLength(1)
+      expect(combined.chart.series[0]!.label).toBe('All holdings combined')
+      combined.chart.series[0]!.points.forEach((point, index) => {
+        expect(point.y).toBe(
+          report.chart.series.reduce(
+            (sum, series) => sum + series.points[index]!.y,
+            0,
+          ),
+        )
+      })
+      expect(report.monthly.rows).toHaveLength(12)
+      expect(combined.monthly).toEqual(report.monthly)
+      expect(
+        preparePortfolioReport(projection, 'total', '2026', 'accounts', metric)
+          .chart,
+      ).toMatchObject({
+        title: report.chart.title,
+        series: report.chart.series,
+      })
+    },
+  )
+
+  it('defaults to after-tax value by account and distinguishes duplicate account names', () => {
+    const draft = createPortfolioDraft()
+    const second = newAccount('account-2')
+    second.name = draft.accounts[0]!.name
+    draft.accounts.push(second)
+    const outcome = evaluatePortfolio(draft)
+    if (!outcome.ok) throw new Error('Expected valid fixture')
+    const report = preparePortfolioReport(outcome.projection, 'total', '')
+    expect(report.chart.title).toBe(
+      'By account: Total value after assessed taxes',
+    )
+    expect(
+      new Set(report.chart.series.map((series) => series.label)).size,
+    ).toBe(2)
+    report.chart.series.forEach((series, index) => {
+      expect(series.points.at(-1)!.y).toBe(
+        outcome.projection.accounts[index]!.totals.equityCents,
+      )
+    })
+  })
+
+  it('defaults new accounts to investing new cash and preserves an explicit hold choice', () => {
+    const draft = createPortfolioDraft()
+    expect(newAccount('next').newCashMode).toBe('invest')
+    draft.years = '10'
+    const account = draft.accounts[0]!
+    account.startingCashCents = '10000'
+    account.monthlyContributionCents = '100'
+    account.rebalance = 'threshold'
+    account.assets[0]!.annualDistributionYield = '0'
+    const invested = evaluatePortfolio(draft)
+    if (!invested.ok) throw new Error('Expected valid fixture')
+    expect(invested.projection.totals).toMatchObject({
+      endingCashCents: 0,
+      endingAssetsCents: 2_300_000,
+      rebalanceCount: 0,
+    })
+    account.newCashMode = 'hold'
+    const held = evaluatePortfolio(draft)
+    if (!held.ok) throw new Error('Expected valid fixture')
+    expect(held.projection.totals).toMatchObject({
+      endingCashCents: 2_200_000,
+      endingAssetsCents: 100_000,
+      rebalanceCount: 0,
+    })
+    const report = preparePortfolioReport(held.projection, 'total', '')
+    expect(report.summary.rows.every((row) => Boolean(row.help))).toBe(true)
+  })
+
   it('parses the synthetic one-month fixture and formats exact cents for tables and chart', () => {
     const draft = createPortfolioDraft()
     draft.years = '0'

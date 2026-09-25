@@ -112,6 +112,7 @@ function runAccount(
 ): PortfolioAccountMonth[] {
   const assets = account.assets.map((asset) => ({ ...asset }))
   let cash = account.startingCashCents
+  let newCash = account.startingCashCents
   let liability = 0
   let netGainsYtd = 0
   const startYear = Number(input.startMonth.slice(0, 4))
@@ -142,6 +143,8 @@ function runAccount(
     function payTax() {
       const paid = Math.min(cash, liability)
       cash -= paid
+      // Pay from other cash first, then reduce cash earmarked for new purchases.
+      newCash = Math.min(newCash, cash)
       liability -= paid
       taxPaidCents = cents(taxPaidCents + paid)
     }
@@ -200,6 +203,7 @@ function runAccount(
     )
     const distributionTaxCents = sum(distributionTaxes)
     cash = sum([cash, account.monthlyContributionCents, distributions])
+    newCash = cents(newCash + account.monthlyContributionCents)
     liability = sum([liability, distributionTaxCents])
     payTax()
     const invested = sum(assets.map((asset) => asset.marketValueCents))
@@ -278,6 +282,7 @@ function runAccount(
         Math.max(0, targets[index]! - asset.marketValueCents),
       )
       purchases = allocate(Math.min(cash, sum(deficits)), deficits)
+      newCash = 0
     } else if (account.distributionMode === 'reinvest') {
       const netDistributions = rows.map(
         (row, index) =>
@@ -288,9 +293,22 @@ function runAccount(
           ]) - distributionTaxes[index]!,
       )
       purchases = allocate(
-        Math.min(cash, sum(netDistributions)),
+        Math.min(
+          account.newCashMode === 'invest' ? cash - newCash : cash,
+          sum(netDistributions),
+        ),
         netDistributions,
       )
+    }
+    if (!rebalance && account.newCashMode === 'invest') {
+      const newPurchases = allocate(
+        newCash,
+        assets.map((asset) => asset.targetWeight),
+      )
+      purchases = purchases.map((amount, index) =>
+        cents(amount + newPurchases[index]!),
+      )
+      newCash = 0
     }
     assets.forEach((asset, index) => {
       const purchase = purchases[index]!
@@ -377,7 +395,7 @@ export function runPortfolioProjection(raw: unknown): PortfolioOutcome {
     return {
       ok: true,
       projection: {
-        engineVersion: 'portfolio-1.0.0',
+        engineVersion: 'portfolio-1.1.0',
         assumptions: input,
         accounts,
         monthly,

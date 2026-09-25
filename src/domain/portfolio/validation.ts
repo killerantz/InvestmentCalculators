@@ -91,6 +91,7 @@ export function validatePortfolioInput(
       'name',
       'startingCashCents',
       'monthlyContributionCents',
+      'newCashMode',
       'distributionMode',
       'rebalance',
       'driftThreshold',
@@ -104,6 +105,7 @@ export function validatePortfolioInput(
     accountIds.add(account.id)
     money(account.startingCashCents, `${path}.startingCashCents`)
     money(account.monthlyContributionCents, `${path}.monthlyContributionCents`)
+    choice(account.newCashMode, `${path}.newCashMode`, ['invest', 'hold'])
     choice(account.distributionMode, `${path}.distributionMode`, [
       'reinvest',
       'retain',

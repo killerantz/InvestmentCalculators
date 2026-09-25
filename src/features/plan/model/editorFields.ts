@@ -6,6 +6,7 @@ export type EditorField = {
   numeric: boolean
   options?: readonly Option[]
   hint?: string
+  help?: string
   error?: string
   disabled?: boolean
   onChange: (value: string) => void

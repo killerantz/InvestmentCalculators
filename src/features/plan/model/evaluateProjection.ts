@@ -7,6 +7,7 @@ import {
 import type { PlanDraft } from './draft'
 import { parsePlanDraft } from './evaluate'
 import { financeDraft } from './financeDraft'
+import { parseTaxDraft } from './taxDraft'
 
 export function evaluateProjection(draft: PlanDraft) {
   const schedule = parsePlanDraft(draft)
@@ -55,6 +56,7 @@ export function evaluateProjection(draft: PlanDraft) {
     }
   })
   const input = {
+    ...(draft.taxes?.enabled ? { taxes: parseTaxDraft(draft, errors) } : {}),
     schedule: schedule.input,
     incomes,
     transfers: (finance.transfers ?? []).map((transfer, index) => ({

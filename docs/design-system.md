@@ -70,6 +70,14 @@ keyboard hint. `ChoiceField` also accepts an error message. Text, number, and ch
 fields accept `disabled`, passed to their native Fluent control; keep a hint explaining
 why a dependent choice cannot be edited. Use these wrappers rather than
 duplicating input layout. `Heading` supports levels 1-3 for nested account sections.
+Text, number, and choice fields accept optional plain-text `help`, rendered through
+Fluent `InfoLabel` without changing their input label or validation wiring. The
+information button opens explanatory text with click, touch, or keyboard and closes
+with Escape. Keep essential behavior visible in hints rather than hiding it in help.
+`DataTable` rows also accept optional `help` on the first cell; the portfolio summary
+uses this for measure definitions without changing its formatted numeric values.
+Table help opens in a portal outside the horizontal scroll region. Its surface
+explicitly wraps text instead of inheriting the data cells' no-wrap behavior.
 Field content is packed at the start of its grid area. A caption or validation
 message increases the parent row height without stretching an adjacent field's
 label and input rows. The foundation preview includes side-by-side fields with

@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { makeStyles, tokens } from '@fluentui/react-components'
+import { InfoButton, makeStyles, tokens } from '@fluentui/react-components'
 
 const useStyles = makeStyles({
   container: {
@@ -32,12 +32,16 @@ const useStyles = makeStyles({
     borderBottomStyle: 'solid',
     borderBottomColor: tokens.colorNeutralStroke2,
   },
+  help: {
+    whiteSpace: 'normal',
+    overflowWrap: 'anywhere',
+  },
 })
 
 export type DataTableProps = {
   caption: string
   columns: readonly string[]
-  rows: readonly { id: string; cells: readonly string[] }[]
+  rows: readonly { id: string; cells: readonly string[]; help?: string }[]
 }
 
 export function DataTable({ caption, columns, rows }: DataTableProps) {
@@ -78,6 +82,13 @@ export function DataTable({ caption, columns, rows }: DataTableProps) {
               {row.cells.map((cell, index) => (
                 <td className={styles.cell} key={index}>
                   {cell}
+                  {index === 0 && row.help && (
+                    <InfoButton
+                      aria-label={`About ${cell}`}
+                      inline={false}
+                      info={{ children: row.help, className: styles.help }}
+                    />
+                  )}
                 </td>
               ))}
             </tr>

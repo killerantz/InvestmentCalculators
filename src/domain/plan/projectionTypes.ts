@@ -1,4 +1,5 @@
 import type { CompiledPlan, PersonId, PlanInput, PlanIssue } from './types'
+import type { PlanTaxAssumptions, PlanTaxProjection } from './taxTypes'
 
 export type IncomeStream = {
   id: string
@@ -47,6 +48,8 @@ export type PlanProjectionInput = {
   withdrawalOrder: readonly string[]
   phaseChanges: readonly PhaseCashFlowChange[]
   annualInflationRate: number
+  /** Omitted means no tax modeling and preserves the original cash-flow engine. */
+  taxes?: PlanTaxAssumptions
 }
 
 export type AccountAmounts = {
@@ -125,7 +128,7 @@ export type PlanAnnualRow = PlanAmounts & {
 }
 
 export type PlanProjection = {
-  engineVersion: 'plan-projection-1.3.0'
+  engineVersion: 'plan-projection-1.5.0'
   schedule: CompiledPlan
   monthly: PlanMonthlyRow[]
   /** Projection years, not calendar years; the last year may be partial. */
@@ -135,6 +138,7 @@ export type PlanProjection = {
   accounts: AccountSummary[]
   /** First unmet-spending month, not a scheduled-withdrawal shortfall. */
   firstShortfallMonth: number | null
+  taxes?: PlanTaxProjection
 }
 
 export type PlanProjectionOutcome =

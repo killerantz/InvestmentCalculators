@@ -148,6 +148,7 @@ export function FoundationPage({
           />
           <TextField
             label="Field with a caption"
+            help="Click or tap this information button for an explanation. You can also reach it with Tab, open it with Enter, and close it with Escape."
             value={previewText}
             onChange={onPreviewTextChange}
             hint="Captions can wrap and increase the row height without stretching neighboring labels or inputs."

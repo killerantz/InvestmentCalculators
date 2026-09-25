@@ -8,6 +8,7 @@ export const editorSections = [
   { value: 'income', label: 'Income & spending' },
   { value: 'phases', label: 'Phases' },
   { value: 'transfers', label: 'Transfers & conversions' },
+  { value: 'taxes', label: 'Tax assumptions' },
   { value: 'preview', label: 'Schedule preview' },
   { value: 'report', label: 'Projection report' },
 ] as const
@@ -43,6 +44,14 @@ const fieldNames: Record<string, string> = {
   endPhaseId: 'Ending phase',
   sourceAccountId: 'From account',
   destinationAccountId: 'To account',
+  ordinaryRate: 'Ordinary-income tax rate',
+  capitalGainsRate: 'Realized-gain tax rate',
+  qualifiedDividendRate: 'Qualified-dividend tax rate',
+  costBasisCents: 'Starting pooled cost basis',
+  annualDividendYield: 'Annual dividend yield',
+  qualifiedDividendShare: 'Qualified share of dividends',
+  taxableShare: 'Taxable share of payment',
+  paymentOrder: 'Tax payment order',
 }
 
 export function groupEditorIssues(
@@ -55,7 +64,10 @@ export function groupEditorIssues(
         .filter((error) => {
           const root = error.path.split('.')[0]
           const target =
-            root === 'accounts' || root === 'phases' || root === 'transfers'
+            root === 'accounts' ||
+            root === 'phases' ||
+            root === 'transfers' ||
+            root === 'taxes'
               ? root
               : [
                     'incomes',
@@ -74,25 +86,49 @@ export function groupEditorIssues(
           const parts = error.path.split('.')
           const index = Number(parts[1])
           const context =
-            parts[0] === 'accounts' && draft.accounts[index]
-              ? `Account ${index + 1}: ${draft.accounts[index].label}`
-              : parts[0] === 'phases' && draft.phases[index]
-                ? `Phase ${index + 1}: ${draft.phases[index].label}`
-                : parts[0] === 'incomes' && draft.finance?.incomes[index]
-                  ? `Income ${index + 1}: ${draft.finance.incomes[index].label}`
-                  : parts[0] === 'transfers' &&
-                      draft.finance?.transfers?.[index]
-                    ? transferName(draft.finance.transfers[index], index)
-                    : section.label
+            parts[0] === 'taxes'
+              ? taxIssueContext(parts, draft)
+              : parts[0] === 'accounts' && draft.accounts[index]
+                ? `Account ${index + 1}: ${draft.accounts[index].label}`
+                : parts[0] === 'phases' && draft.phases[index]
+                  ? `Phase ${index + 1}: ${draft.phases[index].label}`
+                  : parts[0] === 'incomes' && draft.finance?.incomes[index]
+                    ? `Income ${index + 1}: ${draft.finance.incomes[index].label}`
+                    : parts[0] === 'transfers' &&
+                        draft.finance?.transfers?.[index]
+                      ? transferName(draft.finance.transfers[index], index)
+                      : section.label
           const field =
-            parts[0] === 'transfers' && parts.at(-1) === 'monthlyAmountCents'
-              ? 'Monthly amount to move'
-              : parts[0] === 'transfers' && parts.at(-1) === 'annualRate'
-                ? 'Annual percentage to move'
-                : (fieldNames[parts.at(-1) ?? ''] ?? 'Plan settings')
+            parts[0] === 'taxes' && parts.includes('paymentOrder')
+              ? 'Tax payment order'
+              : parts[0] === 'transfers' &&
+                  parts.at(-1) === 'monthlyAmountCents'
+                ? 'Monthly amount to move'
+                : parts[0] === 'transfers' && parts.at(-1) === 'annualRate'
+                  ? 'Annual percentage to move'
+                  : (fieldNames[parts.at(-1) ?? ''] ?? 'Plan settings')
           return `${context} - ${field}: ${error.message}`
         })
       return { ...section, issues }
     })
     .filter((section) => section.issues.length > 0)
+}
+
+function taxIssueContext(parts: string[], draft: PlanDraft) {
+  const index = Number(parts[2])
+  if (parts[1] === 'accounts')
+    return (
+      draft.accounts.filter((account) => account.kind === 'taxable')[index]
+        ?.label ?? 'Brokerage tax details'
+    )
+  if (parts[1] === 'incomes')
+    return draft.finance?.incomes[index]?.label ?? 'Income tax details'
+  if (parts[1] === 'phaseRates')
+    return (
+      draft.phases.filter(
+        (phase) =>
+          Object.keys(draft.taxes?.phaseRates[phase.id] ?? {}).length > 0,
+      )[index]?.label ?? 'Phase tax rates'
+    )
+  return 'Tax assumptions'
 }

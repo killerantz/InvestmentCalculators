@@ -17,6 +17,7 @@ import type { PlanEditorModel } from '../model/usePlanEditor'
 import { Fields } from './Fields'
 import { WithdrawalOrder } from './WithdrawalOrder'
 import { PlanReport } from './PlanReport'
+import { TaxEditor } from './TaxEditor'
 
 export function PlanEditorPage({ model }: { model: PlanEditorModel }) {
   return (
@@ -29,10 +30,11 @@ export function PlanEditorPage({ model }: { model: PlanEditorModel }) {
       <Notice>
         <Text emphasis>Deterministic assumptions, not financial advice</Text>
         Synthetic starting examples only. Edits and copies stay in memory and
-        are lost on reload. Projections do not calculate taxes, benefit
-        eligibility, account-access restrictions, contribution limits, Medicare,
-        or IRS-required RMD amounts. You choose which accounts may fund each
-        phase. Phase names do not activate rules.
+        are lost on reload. Estimated taxes are optional in Tax assumptions.
+        Projections do not determine tax or benefit eligibility, account-access
+        restrictions, contribution limits, Medicare, or IRS-required RMD
+        amounts. You choose which accounts may fund each phase. Phase names do
+        not activate rules.
       </Notice>
       <Row align="end">
         <ChoiceField
@@ -81,6 +83,7 @@ export function PlanEditorPage({ model }: { model: PlanEditorModel }) {
         options={model.sections}
         showNext
       >
+        {model.tab === 'taxes' && <TaxEditor model={model.taxes} />}
         {model.tab === 'household' && (
           <Panel title="Household and planning horizon" icon="components">
             <Fields fields={model.householdFields} />
@@ -110,9 +113,10 @@ export function PlanEditorPage({ model }: { model: PlanEditorModel }) {
             <Notice>
               Traditional workplace plan (401k) means an employer-sponsored
               retirement account; Roth 401k is its Roth counterpart. Account
-              labels do not determine eligibility or calculate taxes. Social
-              Security and pensions are income streams, not accounts. Separate
-              income entry is on Income &amp; spending.
+              types provide tax treatment only when optional tax assumptions are
+              enabled; labels do not determine eligibility. Social Security and
+              pensions are income streams, not accounts. Separate income entry
+              is on Income &amp; spending.
             </Notice>
             <Notice>
               Contributions are additional savings already budgeted outside this
@@ -147,8 +151,9 @@ export function PlanEditorPage({ model }: { model: PlanEditorModel }) {
             <Panel title="Spending and surplus" icon="calculator">
               <Fields fields={model.finances.fields} />
               <Text muted>
-                Income and scheduled account transfers fund spending first. A
-                gap draws from the order below; unused funds go to the selected
+                Income and scheduled withdrawals fund household needs. If taxes
+                are enabled, estimated taxes are paid before spending. A gap
+                draws from the order below; unused funds go to the selected
                 account. Growth and fees occur before end-of-month cash flows.
               </Text>
               <Heading level={3}>Initial automatic withdrawal order</Heading>
@@ -164,7 +169,8 @@ export function PlanEditorPage({ model }: { model: PlanEditorModel }) {
               Amounts are nominal monthly payments at their own start ages.
               Assumed increases begin after 12 payment months, then repeat on
               each start anniversary. Payments continue through the plan; no
-              survivor changes or automatic tax deductions are modeled.
+              survivor changes are modeled. Taxable payment shares are entered
+              separately when estimated taxes are enabled.
             </Notice>
             {model.finances.incomes.length === 0 && (
               <Text>
@@ -211,16 +217,16 @@ export function PlanEditorPage({ model }: { model: PlanEditorModel }) {
             </Text>
             <Text>
               Roth conversions move funds from a traditional IRA or 401k to a
-              Roth IRA or 401k owned by the same person. This models the
-              movement only, not eligibility, taxable income, taxes,
-              withholding, or penalties. General transfers do not determine tax
-              treatment.
+              Roth IRA or 401k owned by the same person. Optional Tax
+              assumptions estimate ordinary-income tax on conversions and
+              account-specific taxes on transfers. Eligibility, withholding, and
+              penalties are not calculated.
             </Text>
             <Text>
               Transfers run in the order below after growth, fees, external
               savings, and scheduled withdrawals to spending, but before
-              automatic spending-gap withdrawals. Earlier transfers can use up
-              funds needed later; received funds are available to later
+              automatic tax/spending-gap withdrawals. Earlier transfers can use
+              up funds needed later; received funds are available to later
               transfers that month. If funds run short, the available amount
               moves and the unfilled amount is reported, not carried forward.
             </Text>
@@ -413,7 +419,7 @@ export function PlanEditorPage({ model }: { model: PlanEditorModel }) {
                     </Text>
                     {phase.transfers.length > 0 && (
                       <DataTable
-                        caption={`${phase.label}: active account transfers (no taxes)`}
+                        caption={`${phase.label}: active account transfer instructions (before estimated taxes)`}
                         columns={[
                           'Transfer (priority order)',
                           'Type',

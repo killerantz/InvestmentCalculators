@@ -11,6 +11,11 @@ summaries and two-scenario worksheets. Its contract is recorded in
 entered-rate portfolio/tax calculator now extend that foundation. Their implemented
 boundaries are recorded in [architecture.md](architecture.md); other capabilities
 remain exploratory.
+The life-phase planner also has an optional estimated-rate tax layer, separate
+from the portfolio strategy worksheet. It collects account basis, dividend
+assumptions, income taxable shares, and phase-rate changes without adding asset
+allocation detail to the main plan. Taxes use the existing withdrawal order and
+affect spending coverage; disabled plans preserve their earlier behavior.
 Live research services, AI integration, and personal-data storage are not implemented.
 
 Confirmed constraints:
@@ -366,7 +371,7 @@ holdings, stock/bond allocations, cash contributions, no/December/drift rebalanc
 and account/asset/calendar ledgers. Held distributions and external contributions
 deploy at the next rebalance; cash otherwise remains available for tax, not spending.
 Reports distinguish gross assets from equity after unpaid assessed tax.
-The pure engine is versioned `portfolio-1.0.0`; its
+The pure engine is versioned `portfolio-1.1.0`; its
 [accounting contract](architecture.md#implemented-portfolio-tax-contract) documents
 timing, cent rounding, settlement, and exclusions.
 

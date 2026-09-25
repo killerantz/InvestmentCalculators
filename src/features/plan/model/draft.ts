@@ -1,4 +1,5 @@
 import type { CashFlowDraft, FinanceDraft } from './financeDraft'
+import type { TaxDraft } from './taxDraft'
 
 export type RateDraft = {
   rateKind: string
@@ -47,6 +48,7 @@ export type PlanDraft = {
   accounts: AccountDraft[]
   phases: PhaseDraft[]
   finance?: FinanceDraft
+  taxes?: TaxDraft
 }
 export const emptyChange = (): ChangeDraft => ({
   contribution: null,
@@ -167,6 +169,18 @@ export function removeAccount(plan: PlanDraft, id: string): void {
     )
   }
   plan.accounts = plan.accounts.filter((account) => account.id !== id)
+  if (plan.taxes) {
+    delete plan.taxes.accounts[id]
+    if (plan.taxes.paymentOrder)
+      plan.taxes.paymentOrder = plan.taxes.paymentOrder.filter(
+        (accountId) => accountId !== id,
+      )
+    for (const override of Object.values(plan.taxes.phaseRates))
+      if (override.paymentOrder)
+        override.paymentOrder = override.paymentOrder.filter(
+          (accountId) => accountId !== id,
+        )
+  }
   for (const phase of plan.phases) {
     delete phase.changes[id]
     if (phase.cashFlow?.withdrawalOrder)
@@ -195,6 +209,7 @@ export function removePhase(plan: PlanDraft, id: string): void {
     )
   }
   plan.phases = plan.phases.filter((phase) => phase.id !== id)
+  if (plan.taxes) delete plan.taxes.phaseRates[id]
   if (plan.finance?.transfers)
     plan.finance.transfers = plan.finance.transfers.filter(
       (transfer) => transfer.phaseId !== id && transfer.endPhaseId !== id,

@@ -20,6 +20,7 @@ export interface PortfolioAccountInput {
   name: string
   startingCashCents: number
   monthlyContributionCents: number
+  newCashMode: 'invest' | 'hold'
   distributionMode: 'reinvest' | 'retain'
   rebalance: 'none' | 'annual' | 'threshold'
   driftThreshold: number
@@ -110,7 +111,7 @@ export interface PortfolioAccountResult {
 }
 
 export interface PortfolioProjection {
-  engineVersion: 'portfolio-1.0.0'
+  engineVersion: 'portfolio-1.1.0'
   assumptions: PortfolioInput
   accounts: readonly PortfolioAccountResult[]
   monthly: readonly PortfolioMonth[]

@@ -11,6 +11,7 @@ import {
   parsePercentage,
 } from '../../../shared/numbers'
 import type { ComparisonChartProps, DataTableProps } from '@ui'
+import { metricHelp } from './help'
 
 export interface AssetDraft {
   id: string
@@ -28,6 +29,7 @@ export interface AccountDraft {
   name: string
   startingCashCents: string
   monthlyContributionCents: string
+  newCashMode: string
   distributionMode: string
   rebalance: string
   driftThreshold: string
@@ -62,6 +64,7 @@ export function newAccount(id: string): AccountDraft {
     name: `Brokerage ${id}`,
     startingCashCents: '0',
     monthlyContributionCents: '0',
+    newCashMode: 'invest',
     distributionMode: 'reinvest',
     rebalance: 'none',
     driftThreshold: '5',
@@ -86,6 +89,73 @@ export function createPortfolioDraft(): PortfolioDraft {
     qualifiedDividendTaxRate: '10',
     realizedGainTaxRate: '15',
     accounts: [newAccount('account-1')],
+  }
+}
+
+export function uniqueId(prefix: string, ids: readonly string[]) {
+  let index = 1
+  while (ids.includes(`${prefix}-${index}`)) index++
+  return `${prefix}-${index}`
+}
+
+export function duplicateAccount(
+  draft: PortfolioDraft,
+  accountId: string,
+): PortfolioDraft {
+  const index = draft.accounts.findIndex((account) => account.id === accountId)
+  const source = draft.accounts[index]
+  if (!source) throw new Error(`Cannot duplicate missing account: ${accountId}`)
+  const copy: AccountDraft = {
+    ...structuredClone(source),
+    id: uniqueId(
+      'account',
+      draft.accounts.map((account) => account.id),
+    ),
+    name: `${source.name} copy`,
+  }
+  return {
+    ...draft,
+    accounts: [
+      ...draft.accounts.slice(0, index + 1),
+      copy,
+      ...draft.accounts.slice(index + 1),
+    ],
+  }
+}
+
+export function duplicateAsset(
+  draft: PortfolioDraft,
+  accountId: string,
+  assetId: string,
+): PortfolioDraft {
+  const account = draft.accounts.find((account) => account.id === accountId)
+  if (!account)
+    throw new Error(`Cannot duplicate asset in missing account: ${accountId}`)
+  const index = account.assets.findIndex((asset) => asset.id === assetId)
+  const source = account.assets[index]
+  if (!source) throw new Error(`Cannot duplicate missing asset: ${assetId}`)
+  const copy: AssetDraft = {
+    ...structuredClone(source),
+    id: uniqueId(
+      'asset',
+      account.assets.map((asset) => asset.id),
+    ),
+    name: `${source.name} copy`,
+  }
+  return {
+    ...draft,
+    accounts: draft.accounts.map((item) =>
+      item.id === accountId
+        ? {
+            ...item,
+            assets: [
+              ...item.assets.slice(0, index + 1),
+              copy,
+              ...item.assets.slice(index + 1),
+            ],
+          }
+        : item,
+    ),
   }
 }
 
@@ -167,7 +237,7 @@ export function evaluatePortfolio(draft: PortfolioDraft): PortfolioOutcome {
   return errors.length ? { ok: false, errors } : runPortfolioProjection(input)
 }
 
-const metrics: readonly [keyof PortfolioAmounts, string][] = [
+const metrics: readonly [keyof typeof metricHelp, string][] = [
   ['grossAssetsCents', 'Ending gross assets'],
   ['equityCents', 'Ending equity after assessed taxes'],
   ['endingAssetsCents', 'Ending invested assets'],
@@ -188,10 +258,23 @@ const metrics: readonly [keyof PortfolioAmounts, string][] = [
   ['taxLiabilityCents', 'Ending unpaid tax liability'],
 ]
 
+export const portfolioChartMetricOptions = [
+  { value: 'equityCents', label: 'Total value after assessed taxes' },
+  { value: 'endingAssetsCents', label: 'Invested assets (stocks and bonds)' },
+  { value: 'endingCashCents', label: 'Uninvested cash' },
+  { value: 'grossAssetsCents', label: 'Gross assets (investments + cash)' },
+] as const
+
+export type PortfolioChartMetric =
+  (typeof portfolioChartMetricOptions)[number]['value']
+export type PortfolioChartView = 'accounts' | 'total'
+
 export function preparePortfolioReport(
   projection: PortfolioProjection,
   accountId: string,
   year: string,
+  chartView: PortfolioChartView = 'accounts',
+  chartMetric: PortfolioChartMetric = 'equityCents',
 ) {
   const account = projection.accounts.find(
     (item) => item.accountId === accountId,
@@ -226,6 +309,7 @@ export function preparePortfolioReport(
     rows: [
       ...metrics.map(([key, label]) => ({
         id: key,
+        help: metricHelp[key],
         cells: [
           label,
           ...projection.accounts.map((item) => formatMoney(item.totals[key])),
@@ -234,6 +318,7 @@ export function preparePortfolioReport(
       })),
       {
         id: 'rebalances',
+        help: metricHelp.rebalanceCount,
         cells: [
           'Rebalance events',
           ...projection.accounts.map((item) =>
@@ -361,36 +446,54 @@ export function preparePortfolioReport(
         ],
       })),
   }
-  const opening =
-    projection.totals.openingAssetsCents + projection.totals.openingCashCents
+  const metricLabel = portfolioChartMetricOptions.find(
+    (option) => option.value === chartMetric,
+  )!.label
+  function openingValue(totals: PortfolioAmounts) {
+    if (chartMetric === 'endingAssetsCents') return totals.openingAssetsCents
+    if (chartMetric === 'endingCashCents') return totals.openingCashCents
+    return (
+      totals.openingAssetsCents +
+      totals.openingCashCents -
+      (chartMetric === 'equityCents' ? totals.openingTaxLiabilityCents : 0)
+    )
+  }
+  const chartAccounts =
+    chartView === 'accounts'
+      ? projection.accounts.map((item, index) => ({
+          id: item.accountId,
+          label:
+            projection.accounts.filter(
+              (other) => name(other.accountId) === name(item.accountId),
+            ).length > 1
+              ? `${name(item.accountId)} (${item.accountId})`
+              : name(item.accountId),
+          styleIndex: index,
+          totals: item.totals,
+          monthly: item.monthly,
+        }))
+      : [
+          {
+            id: 'total',
+            label: 'All holdings combined',
+            styleIndex: 0,
+            totals: projection.totals,
+            monthly: projection.monthly,
+          },
+        ]
   const chart: ComparisonChartProps = {
-    title: 'All holdings: gross assets and equity after assessed taxes',
+    title: `${chartView === 'accounts' ? 'By account' : 'All holdings combined'}: ${metricLabel}`,
     xLabel: 'Projection month',
     yLabel: 'Nominal USD',
-    series: [
-      {
-        id: 'gross',
-        label: 'Gross assets',
-        points: [
-          { x: 0, y: opening },
-          ...projection.monthly.map((row) => ({
-            x: row.month,
-            y: row.grossAssetsCents,
-          })),
-        ],
-      },
-      {
-        id: 'equity',
-        label: 'Equity after assessed taxes',
-        points: [
-          { x: 0, y: opening },
-          ...projection.monthly.map((row) => ({
-            x: row.month,
-            y: row.equityCents,
-          })),
-        ],
-      },
-    ],
+    series: chartAccounts.map((item) => ({
+      id: item.id,
+      label: item.label,
+      styleIndex: item.styleIndex,
+      points: [
+        { x: 0, y: openingValue(item.totals) },
+        ...item.monthly.map((row) => ({ x: row.month, y: row[chartMetric] })),
+      ],
+    })),
     formatValue: (value) => formatMoney(Math.round(value)),
   }
   return {

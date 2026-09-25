@@ -2,6 +2,7 @@ import type { AccountMonthlyRow, PlanProjection } from '../../../domain/plan'
 import { formatMoney } from '../../../shared/numbers'
 import type { PlanDraft } from './draft'
 import { formatAge, planAges } from './planAges'
+import { taxReportView } from './taxReportView'
 import {
   transferAmountLabel,
   transferIncludesPhase,
@@ -30,6 +31,7 @@ export function planReportView(
   draft: PlanDraft,
   options: ReportOptions,
 ) {
+  const taxReport = taxReportView(projection, draft, options)
   const ages = planAges(projection.schedule)
   const accountName = (id: string) =>
     draft.accounts.find((account) => account.id === id)?.label ?? id
@@ -162,6 +164,7 @@ export function planReportView(
       ? 'None in this projection'
       : `${projection.monthly[month - 1]?.calendarMonth ?? ''} (${ages.describe(month)} at month end)`
   return {
+    taxReport,
     phaseMarkers,
     planEndSummary: ages.endSummary,
     version: projection.engineVersion,
@@ -200,7 +203,9 @@ export function planReportView(
           projection.totals.transfersOutCents,
         ],
         [
-          'Of money moved: Roth conversions (not taxable income)',
+          projection.taxes
+            ? 'Of money moved: Roth conversions (ordinary taxable)'
+            : 'Of money moved: Roth conversions (taxes not modeled)',
           projection.totals.rothConversionsOutCents,
         ],
         [
@@ -420,14 +425,27 @@ export function planReportView(
           y: row.requestedSpendingCents / 100,
         })),
       },
+      ...(projection.taxes
+        ? [
+            {
+              id: 'taxes',
+              label: 'Estimated taxes paid',
+              points: projection.taxes.monthly.map((row) => ({
+                x: chartX(row.month),
+                y: row.taxPaidCents / 100,
+              })),
+            },
+          ]
+        : []),
     ],
     columns: [
       'Period',
       ...ages.columns,
       'Phase(s)',
       ...amounts.map(([, label]) => `${label} ($)`),
+      ...(taxReport?.cashFlowColumns ?? []),
     ],
-    ledger: rows.map((row) => ({
+    ledger: rows.map((row, index) => ({
       id: period(row),
       cells: [
         period(row),
@@ -442,6 +460,7 @@ export function planReportView(
               ),
             ].join(' / '),
         ...amounts.map(([key]) => formatMoney(row[key])),
+        ...(taxReport?.cashFlowCells[index] ?? []),
       ],
     })),
     accountColumns: [

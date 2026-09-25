@@ -113,14 +113,68 @@ withdrawal order in phase settings. Do not duplicate the same payout as a schedu
 transfer to spending, because both instructions execute.
 If a source runs short, only available funds move and the unfilled amount is
 reported without carrying it forward. Roth conversions require traditional and
-Roth accounts owned by the same person, but do not check legal eligibility or
-calculate taxes or withholding. Reports show money moved and unfilled requests,
+Roth accounts owned by the same person, but do not check legal eligibility.
+Optional Tax assumptions estimate their ordinary-income tax; withholding is not
+modeled. Reports show money moved and unfilled requests,
 with conversions identified as a subset of transfers. Existing external-savings
 entries are not automatically changed; correct them separately if they were meant
 to represent conversions.
 Reported income means Social Security and pensions, not taxable income.
 Account contributions remain external, already-budgeted savings rather than modeled
 salary. The planner does not automatically infer account-access or benefit rules.
+
+### Optional life-phase tax estimates
+
+Tax assumptions is a separate, opt-in section. Leave it off to preserve the
+original cash-flow behavior. Enabling it requires entered ordinary-income,
+realized-gain, and qualified-dividend rates; enter an explicit zero if applicable.
+Optional per-phase rate changes carry forward until replaced. Disabling taxes
+retains the entered drafts, and plan copies keep independent tax assumptions.
+
+Traditional IRA/401(k) withdrawals and Roth conversions are modeled as fully
+ordinary taxable income. Same-owner traditional-to-traditional transfers are
+assumed tax-free rollovers. Qualified Roth withdrawals are assumed tax-free;
+qualification is not checked. Positive savings growth is ordinary interest.
+After-tax retirement basis, early-withdrawal penalties, deductions, credits,
+brackets, state rules, and contribution deductions are not modeled.
+
+Each brokerage account needs its starting pooled cost basis. Optional dividend
+yield and qualified share default to zero. The existing account return is
+**total return including reinvested dividends**, unlike the price-only return in
+Portfolio & taxes. Dividend estimates use opening balance times annual yield
+divided by 12. They add basis and estimated tax, not extra growth or spendable
+cash. Brokerage withdrawals and outward transfers sell proportional pooled
+basis; only positive realized gains are taxed, with no tax-loss offsets.
+
+Pensions default to fully taxable, with an editable taxable share. Social
+Security requires an explicit assumed taxable share from 0 to 85%; the planner
+does not calculate it from household income. Income payments are gross amounts
+when taxes are enabled. A combined portfolio cannot use one reliable account
+tax treatment: split it into individual account types or leave taxes disabled.
+
+Estimated taxes are assessed monthly and funded before spending. The planner
+uses available income and scheduled withdrawals first. Extra tax withdrawals
+follow the spending withdrawal order by default. Enable **Use a separate
+tax-payment order** in Tax assumptions to choose and reorder preferred accounts,
+such as savings, brokerage, then 401(k), without changing spending distributions.
+If preferred tax accounts run out, tax funding falls back to that phase's spending
+withdrawal order. Accounts selected only for taxes never cover spending shortfalls.
+Both paths include the extra tax on withdrawals needed to fund the tax bill.
+At a 20% rate,
+$1,000 of spending funded entirely from a traditional IRA requires $1,250 gross.
+With sufficient savings selected separately for taxes, the same plan withdraws
+$1,000 from the IRA and $200 from savings instead.
+
+Each phase can inherit its tax-payment setting, use a separate order, or resume
+following the spending order. That choice carries forward until replaced. An
+empty preferred list uses only the spending-order fallback; it does not turn off
+tax payments. Separate withdrawals round tax per transaction, so cent-level
+differences from combined funding are possible.
+Unpaid taxes carry forward; unfunded spending still does not become debt.
+Reports show tax assessed, tax paid, unpaid liability, brokerage basis, and
+account balances less remaining unpaid tax. Ending unrealized gains are not
+automatically liquidated or taxed. Annual tax reports group projection years,
+not tax-return years; no filing or payment deadlines are simulated.
 
 The Growth comparison page compares two synthetic growth and cash-flow scenarios with monthly
 calculations, dollar/percentage differences, a shared balance/growth chart, and
@@ -145,6 +199,12 @@ accounts and stock/bond assets with starting market value, pooled cost basis, an
 target allocations. Multiple accounts are holdings added together, not alternative
 scenarios. Targets total 100% of investments, excluding account cash.
 
+Use the Duplicate/Remove action bars at the bottom of each account or asset block.
+Duplicates appear immediately after the original with a "copy" name and independent
+editable values. Account copies include all assets and settings. Asset copies preserve
+amounts and target weights; adjust weights to total 100% before calculating. Account
+copies are still included in combined holdings totals, not treated as alternate plans.
+
 Enter annual price growth separately from dividend or interest yield; do not use a
 total-return rate for price growth. Stocks split dividends into qualified and ordinary
 shares; bonds pay ordinary interest. Set your own ordinary-income, qualified-dividend,
@@ -152,10 +212,24 @@ and realized-gain tax rates. These are estimates, not tax brackets or a tax retu
 
 Choose no rebalancing, December rebalancing, or monthly-checked allocation drift.
 Between rebalances, reinvest after-tax distributions or hold them in cash until the
-next rebalance. Starting cash and monthly external contributions invest only at a
-rebalance. Every rebalance uses all remaining cash for target-deficit purchases,
+next rebalance. A separate Invest new cash choice defaults new accounts to investing
+starting cash and monthly external contributions by target allocation at month-end,
+after taxes. Choose Hold until a rebalance to keep the previous cash behavior.
+New-cash purchases do not sell existing holdings or count as rebalances.
+First-month starting cash earns investment returns only after its month-end purchase.
+Every rebalance uses all remaining cash for target-deficit purchases,
 including held distributions. Cash earns no interest and does not fund retirement
 spending in this version.
+
+Use the information buttons beside portfolio inputs and summary measures for
+plain-language explanations and examples. They support click, touch, and keyboard.
+Threshold rebalancing checks monthly but does not trade automatically each month.
+A single investment with a 100% target never drifts because cash is excluded.
+
+The chart defaults to one named line per account. Choose total value after assessed
+taxes, invested assets, uninvested cash, or gross assets. Switch to All holdings
+combined to see their sum. Chart controls are independent of the detailed-ledger
+account and year selectors. Changing the chart does not recalculate the projection.
 
 Distribution taxes are assessed monthly. Sales remove proportional pooled basis,
 and realized losses offset gains within the same account and calendar year.

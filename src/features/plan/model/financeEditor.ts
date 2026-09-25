@@ -4,11 +4,11 @@ import { editorField as field, type EditorField } from './editorFields'
 import {
   financeDraft,
   inheritedCashFlow,
-  moveWithdrawal,
   type FinanceDraft,
   type IncomeDraft,
   type CashFlowDraft,
 } from './financeDraft'
+import { withdrawalOrderEditor } from './withdrawalOrderEditor'
 
 export function financeEditor(
   plan: PlanDraft,
@@ -42,39 +42,7 @@ export function financeEditor(
     setOrder: (order: string[]) => void,
     path: string,
   ) {
-    const accounts = [
-      ...order.flatMap((id) =>
-        plan.accounts.filter((account) => account.id === id),
-      ),
-      ...plan.accounts.filter((account) => !order.includes(account.id)),
-    ]
-    return {
-      error: errorAt(path),
-      empty: order.length === 0,
-      accounts: accounts.map((account) => {
-        const index = order.indexOf(account.id)
-        return {
-          id: account.id,
-          label:
-            index < 0
-              ? `${account.label} (excluded)`
-              : `${index + 1}. ${account.label}`,
-          checked: index >= 0,
-          toggle: (checked: boolean) =>
-            setOrder(
-              checked
-                ? [...order, account.id]
-                : order.filter((id) => id !== account.id),
-            ),
-          earlierLabel: `Move ${account.label} earlier in withdrawal order`,
-          laterLabel: `Move ${account.label} later in withdrawal order`,
-          canMoveEarlier: index > 0,
-          canMoveLater: index >= 0 && index < order.length - 1,
-          earlier: () => setOrder(moveWithdrawal(order, account.id, -1)),
-          later: () => setOrder(moveWithdrawal(order, account.id, 1)),
-        }
-      }),
-    }
+    return withdrawalOrderEditor(plan, order, setOrder, errorAt(path))
   }
   return {
     fields: fieldsWithErrors([
@@ -253,4 +221,4 @@ export function financeEditor(
     }),
   }
 }
-export type WithdrawalOrderModel = ReturnType<typeof financeEditor>['order']
+export type { WithdrawalOrderModel } from './withdrawalOrderEditor'

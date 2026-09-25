@@ -28,6 +28,7 @@ const account = (
   name: 'Synthetic brokerage',
   startingCashCents: 0,
   monthlyContributionCents: 0,
+  newCashMode: 'hold',
   distributionMode: 'reinvest',
   rebalance: 'none',
   driftThreshold: 0.05,
@@ -50,6 +51,250 @@ function run(value: unknown): PortfolioProjection {
 }
 const monthlyGrowth = (rate: number) => Math.pow(1 + rate, 12) - 1
 
+describe('independent new-cash investing', () => {
+  it.each(['none', 'threshold'] as const)(
+    'invests starting cash and monthly deposits with %s rebalancing and no initial holdings',
+    (rebalance) => {
+      const result = run(
+        input({
+          months: 120,
+          accounts: [
+            account({
+              newCashMode: 'invest',
+              rebalance,
+              startingCashCents: 1_000_000,
+              monthlyContributionCents: 10_000,
+              assets: [asset({ marketValueCents: 0, costBasisCents: 0 })],
+            }),
+          ],
+        }),
+      )
+      expect(result.totals).toMatchObject({
+        endingAssetsCents: 2_200_000,
+        endingBasisCents: 2_200_000,
+        endingCashCents: 0,
+        purchasesCents: 2_200_000,
+        salesCents: 0,
+        rebalanceCount: 0,
+      })
+      expect(result.monthly[0]!.purchasesCents).toBe(1_010_000)
+    },
+  )
+
+  it('splits purchases by target weights rather than selling or correcting existing overweight holdings', () => {
+    const result = run(
+      input({
+        accounts: [
+          account({
+            newCashMode: 'invest',
+            startingCashCents: 10_001,
+            assets: [
+              asset({ targetWeight: 0.6 }),
+              asset({
+                id: 'second',
+                marketValueCents: 0,
+                costBasisCents: 0,
+                targetWeight: 0.4,
+              }),
+            ],
+          }),
+        ],
+      }),
+    )
+    expect(
+      result.accounts[0]!.monthly[0]!.assets.map((row) => row.purchasesCents),
+    ).toEqual([6001, 4000])
+    expect(result.totals).toMatchObject({
+      salesCents: 0,
+      purchasesCents: 10_001,
+      endingCashCents: 0,
+      rebalanceCount: 0,
+    })
+  })
+
+  it('reinvests each dividend in its source while allocating new cash by target', () => {
+    const result = run(
+      input({
+        accounts: [
+          account({
+            newCashMode: 'invest',
+            monthlyContributionCents: 10_000,
+            assets: [
+              asset({ targetWeight: 0.6, annualDistributionYield: 0.12 }),
+              asset({
+                id: 'second',
+                targetWeight: 0.4,
+                annualDistributionYield: 0.24,
+              }),
+            ],
+          }),
+        ],
+      }),
+    )
+    expect(
+      result.accounts[0]!.monthly[0]!.assets.map((row) => row.purchasesCents),
+    ).toEqual([6800, 5600])
+    expect(result.totals).toMatchObject({
+      purchasesCents: 12_400,
+      taxPaidCents: 600,
+      endingCashCents: 0,
+    })
+  })
+
+  it.each(['reinvest', 'retain'] as const)(
+    'keeps %s distribution handling independent from new cash, after tax',
+    (distributionMode) => {
+      const result = run(
+        input({
+          months: 2,
+          accounts: [
+            account({
+              newCashMode: 'invest',
+              distributionMode,
+              startingCashCents: 10_000,
+              monthlyContributionCents: 1000,
+              assets: [asset({ annualDistributionYield: 0.12 })],
+            }),
+          ],
+        }),
+      )
+      const [first, second] = result.accounts[0]!.monthly
+      expect(first).toMatchObject({
+        distributionTaxCents: 200,
+        taxPaidCents: 200,
+        purchasesCents: distributionMode === 'reinvest' ? 11_800 : 11_000,
+        endingCashCents: distributionMode === 'reinvest' ? 0 : 800,
+        rebalanceCount: 0,
+      })
+      if (distributionMode === 'retain') {
+        expect(second).toMatchObject({
+          purchasesCents: 1000,
+          endingCashCents: 1688,
+        })
+      }
+      for (const row of result.monthly) {
+        expect(row.grossAssetsCents).toBe(
+          row.openingAssetsCents +
+            row.openingCashCents +
+            row.contributionsCents +
+            row.qualifiedDividendsCents +
+            row.ordinaryDividendsCents -
+            row.taxPaidCents,
+        )
+      }
+    },
+  )
+
+  it('does not give starting cash investment returns before its first month-end purchase', () => {
+    const result = run(
+      input({
+        months: 2,
+        accounts: [
+          account({
+            newCashMode: 'invest',
+            startingCashCents: 10_000,
+            assets: [
+              asset({
+                marketValueCents: 0,
+                costBasisCents: 0,
+                annualPriceGrowthRate: monthlyGrowth(0.01),
+              }),
+            ],
+          }),
+        ],
+      }),
+    )
+    expect(result.monthly[0]).toMatchObject({
+      growthCents: 0,
+      purchasesCents: 10_000,
+      endingAssetsCents: 10_000,
+    })
+    expect(result.monthly[1]).toMatchObject({
+      growthCents: 100,
+      purchasesCents: 0,
+      endingAssetsCents: 10_100,
+    })
+  })
+
+  it('deploys all cash just once at a December rebalance, including retained payouts', () => {
+    const result = run(
+      input({
+        startMonth: '2026-12',
+        accounts: [
+          account({
+            newCashMode: 'invest',
+            rebalance: 'annual',
+            distributionMode: 'retain',
+            startingCashCents: 10_000,
+            monthlyContributionCents: 1000,
+            assets: [asset({ annualDistributionYield: 0.12 })],
+          }),
+        ],
+      }),
+    )
+    expect(result.totals).toMatchObject({
+      purchasesCents: 11_800,
+      endingCashCents: 0,
+      endingAssetsCents: 111_800,
+      endingBasisCents: 111_800,
+      rebalanceCount: 1,
+    })
+  })
+
+  it('pays a gain-tax shortfall from new cash before making purchases', () => {
+    const result = run(
+      input({
+        startMonth: '2026-12',
+        months: 1,
+        realizedGainTaxRate: 1,
+        accounts: [
+          account({
+            newCashMode: 'invest',
+            rebalance: 'annual',
+            startingCashCents: 1000,
+            assets: [
+              asset({
+                marketValueCents: 20_000,
+                costBasisCents: 0,
+                targetWeight: 0.5,
+              }),
+              asset({
+                id: 'second',
+                marketValueCents: 0,
+                costBasisCents: 0,
+                targetWeight: 0.5,
+              }),
+            ],
+          }),
+        ],
+      }),
+    )
+    expect(result.totals).toMatchObject({
+      salesCents: 10_000,
+      taxPaidCents: 10_000,
+      purchasesCents: 1000,
+      endingCashCents: 0,
+      taxLiabilityCents: 0,
+      equityCents: 11_000,
+    })
+  })
+
+  it('rejects missing and unsupported new-cash modes rather than silently choosing a policy', () => {
+    for (const newCashMode of [undefined, 'monthly', null]) {
+      const result = runPortfolioProjection({
+        ...input(),
+        accounts: [{ ...account(), newCashMode }],
+      })
+      expect(result.ok).toBe(false)
+      if (!result.ok)
+        expect(result.errors).toContainEqual({
+          path: 'accounts[0].newCashMode',
+          message: 'Choose invest, hold.',
+        })
+    }
+  })
+})
+
 describe('portfolio accounting', () => {
   it('preserves a zero-growth, zero-yield portfolio and records cash contributions', () => {
     const result = run(
@@ -63,7 +308,7 @@ describe('portfolio accounting', () => {
         ],
       }),
     )
-    expect(result.engineVersion).toBe('portfolio-1.0.0')
+    expect(result.engineVersion).toBe('portfolio-1.1.0')
     expect(result.totals).toMatchObject({
       endingAssetsCents: 100_000,
       endingBasisCents: 100_000,
@@ -366,47 +611,53 @@ describe('portfolio accounting', () => {
     )
   })
 
-  it('uses future external cash to pay an existing liability before investing', () => {
-    const result = run(
-      input({
-        startMonth: '2026-11',
-        months: 3,
-        realizedGainTaxRate: 1,
-        accounts: [
-          account({
-            rebalance: 'threshold',
-            driftThreshold: 0.04,
-            monthlyContributionCents: 100,
-            assets: [
-              asset({
-                marketValueCents: 10_000,
-                costBasisCents: 0,
-                targetWeight: 0.5,
-                annualPriceGrowthRate: monthlyGrowth(0.2),
-              }),
-              asset({
-                id: 'bond',
-                type: 'bond',
-                marketValueCents: 10_000,
-                costBasisCents: 10_000,
-                targetWeight: 0.5,
-              }),
-            ],
-          }),
-        ],
-      }),
-    )
-    const [, december, january] = result.accounts[0]!.monthly
-    expect(december!.taxLiabilityCents).toBeGreaterThan(0)
-    expect(january!.openingTaxLiabilityCents).toBe(december!.taxLiabilityCents)
-    expect(january!.taxPaidCents).toBeGreaterThanOrEqual(100)
-    expect(january!.taxLiabilityCents).toBe(
-      january!.openingTaxLiabilityCents +
-        january!.taxAssessedCents -
-        january!.taxPaidCents,
-    )
-    expect(january!.purchasesCents).toBe(0)
-  })
+  it.each(['hold', 'invest'] as const)(
+    'uses future external cash to pay an existing liability before %s purchases',
+    (newCashMode) => {
+      const result = run(
+        input({
+          startMonth: '2026-11',
+          months: 3,
+          realizedGainTaxRate: 1,
+          accounts: [
+            account({
+              newCashMode,
+              rebalance: 'threshold',
+              driftThreshold: 0.04,
+              monthlyContributionCents: 100,
+              assets: [
+                asset({
+                  marketValueCents: 10_000,
+                  costBasisCents: 0,
+                  targetWeight: 0.5,
+                  annualPriceGrowthRate: monthlyGrowth(0.2),
+                }),
+                asset({
+                  id: 'bond',
+                  type: 'bond',
+                  marketValueCents: 10_000,
+                  costBasisCents: 10_000,
+                  targetWeight: 0.5,
+                }),
+              ],
+            }),
+          ],
+        }),
+      )
+      const [, december, january] = result.accounts[0]!.monthly
+      expect(december!.taxLiabilityCents).toBeGreaterThan(0)
+      expect(january!.openingTaxLiabilityCents).toBe(
+        december!.taxLiabilityCents,
+      )
+      expect(january!.taxPaidCents).toBeGreaterThanOrEqual(100)
+      expect(january!.taxLiabilityCents).toBe(
+        january!.openingTaxLiabilityCents +
+          january!.taxAssessedCents -
+          january!.taxPaidCents,
+      )
+      expect(january!.purchasesCents).toBe(0)
+    },
+  )
 
   it('does not net independent account gains against losses', () => {
     const make = (id: string, basis: number) =>

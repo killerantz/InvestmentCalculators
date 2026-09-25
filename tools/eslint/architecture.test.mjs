@@ -182,6 +182,7 @@ const imports = `
 tester.run('token-styles', tokenStyles, {
   valid: [
     `${imports} makeStyles({ root: { display: 'grid', alignContent: 'start' } })`,
+    `${imports} makeStyles({ help: { whiteSpace: 'normal', overflowWrap: 'anywhere' } })`,
     `${imports} makeStyles({ root: { color: tokens.colorNeutralForeground1, padding: tokens.spacingHorizontalM, maxWidth: appTokens.contentWidth, display: 'flex', margin: 0 } })`,
     `${imports} makeStyles({ root: { ':hover': { color: tokens.colorBrandForeground1 } } })`,
     "import { makeStyles as styles, tokens as t } from '@fluentui/react-components'; styles({ root: { color: t.colorNeutralForeground1 } })",

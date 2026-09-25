@@ -1,6 +1,18 @@
 export { compilePlan } from './compiler'
 export { runPlanProjection } from './projection'
 export type {
+  PlanTaxRates,
+  PlanTaxAccountAssumptions,
+  PlanTaxIncomeAssumptions,
+  PlanTaxPhaseRates,
+  PlanTaxAssumptions,
+  PlanTaxAmounts,
+  PlanTaxAccountRow,
+  PlanTaxMonthlyRow,
+  PlanTaxAnnualRow,
+  PlanTaxProjection,
+} from './taxTypes'
+export type {
   AccountTransfer,
   IncomeStream,
   PhaseCashFlowChange,

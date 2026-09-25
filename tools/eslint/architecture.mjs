@@ -195,7 +195,7 @@ const structuralValues = {
   overflowX: ['auto'],
   borderCollapse: ['collapse'],
   textAlign: ['start'],
-  whiteSpace: ['nowrap'],
+  whiteSpace: ['nowrap', 'normal'],
   transform: ['translateY(-100%)', 'none'],
 }
 

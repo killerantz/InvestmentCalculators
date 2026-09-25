@@ -27,6 +27,34 @@ export function PlanReport({ model }: { model: PlanReportModel }) {
         columns={['Measure', 'Amount']}
         rows={model.totals}
       />
+      {model.taxReport ? (
+        <Stack>
+          <Notice tone={model.taxReport.hasUnpaid ? 'error' : 'info'}>
+            Estimated taxes are enabled. Available income and scheduled
+            withdrawals fund taxes first. Extra tax withdrawals use the tax
+            order shown below, falling back to the spending withdrawal order,
+            including tax on extra withdrawals. Ending unpaid tax:{' '}
+            {model.taxReport.unpaid}. Unpaid taxes carry forward; account
+            balances are not net of this remaining liability. No penalties or
+            interest on unpaid tax are modeled.
+          </Notice>
+          <DataTable {...model.taxReport.summary} />
+          <DataTable {...model.taxReport.funding} />
+          <DataTable {...model.taxReport.accounts} />
+          <Text muted>
+            Brokerage dividends are assumed reinvested within the entered total
+            return, not additional spendable income. Ordinary dividends are a
+            subset of ordinary taxable income. Positive gains are taxed per
+            sale; losses do not reduce tax. Account tax detail excludes taxes on
+            pension and Social Security streams; household totals include them.
+          </Text>
+        </Stack>
+      ) : (
+        <Notice>
+          Estimated taxes are off. Enable Tax assumptions to include their
+          effect on spending and balances.
+        </Notice>
+      )}
       {model.hasTransferShortfall && (
         <Notice tone="error">
           Some account-to-account transfers could not be fully funded. Review
@@ -80,9 +108,9 @@ export function PlanReport({ model }: { model: PlanReportModel }) {
           <Text>
             Account-to-account transfers move existing funds without adding
             household income or savings. Roth conversion amounts are included in
-            transfers, not added again. Taxes and withholding are not
-            calculated. These totals cover each transfer&apos;s full selected
-            phase range.
+            transfers, not added again. Estimated tax consequences are included
+            only when Tax assumptions are enabled; withholding is not modeled.
+            These totals cover each transfer&apos;s full selected phase range.
           </Text>
           <DataTable
             caption="Account transfers and Roth conversions by phase"
@@ -109,7 +137,8 @@ export function PlanReport({ model }: { model: PlanReportModel }) {
             one-twelfth is requested in each active month, with cent rounding
             adjustments and no catch-up. The active-month total can therefore be
             less than the annual target. This does not calculate IRS-required
-            distributions or taxes.
+            distributions. Estimated taxes, when enabled, are reported
+            separately.
           </Text>
           <DataTable
             caption="Annual percentage transfer calculation details"
@@ -194,7 +223,11 @@ export function PlanReport({ model }: { model: PlanReportModel }) {
       </Panel>
       <Panel title="Income and spending trends" icon="calculator">
         <ComparisonChart
-          title="Monthly income versus planned spending"
+          title={
+            model.taxReport
+              ? 'Monthly income, planned spending, and estimated taxes paid'
+              : 'Monthly income versus planned spending'
+          }
           xLabel={model.xLabel}
           yLabel="Nominal USD per month"
           series={model.flowSeries}
@@ -206,9 +239,10 @@ export function PlanReport({ model }: { model: PlanReportModel }) {
         <Text muted>
           Income here means Social Security and pension payments, not taxable
           income. Account withdrawals fund spending gaps when available; they
-          are shown separately in the ledger. Taxes, taxable investment income,
-          and the tax consequences of Roth conversions are not calculated.
-          External savings are new money, not counted again as income.
+          are shown separately in the ledger. Optional estimated taxes include
+          taxable account activity and Roth conversions; this chart shows tax
+          paid, not outstanding bills. External savings are new money, not
+          counted again as income.
         </Text>
       </Panel>
       <Tabs
@@ -218,6 +252,7 @@ export function PlanReport({ model }: { model: PlanReportModel }) {
         onChange={model.setInterval}
       >
         <Stack>
+          {model.taxReport && <DataTable {...model.taxReport.ledger} />}
           <Text muted>
             Ages show the start of each displayed period. Plan-end ages are
             shown in the summary above, including partial final years. Years run

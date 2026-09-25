@@ -6,8 +6,19 @@ import {
   newAccount,
   newAsset,
   preparePortfolioReport,
+  portfolioChartMetricOptions,
+  duplicateAccount,
+  duplicateAsset,
+  uniqueId,
 } from './worksheet'
-import type { AccountDraft, AssetDraft, PortfolioDraft } from './worksheet'
+import type {
+  AccountDraft,
+  AssetDraft,
+  PortfolioDraft,
+  PortfolioChartMetric,
+  PortfolioChartView,
+} from './worksheet'
+import { accountHelp, assetHelp, projectionHelp, metricHelp } from './help'
 
 interface FieldView {
   key: string
@@ -16,10 +27,11 @@ interface FieldView {
   onChange: (value: string) => void
   error?: string
   hint?: string
+  help?: string
   text?: boolean
   options?: readonly { value: string; label: string }[]
 }
-const assetFields: readonly [keyof AssetDraft, string][] = [
+const assetFields: readonly [Exclude<keyof AssetDraft, 'id'>, string][] = [
   ['name', 'Asset name'],
   ['marketValueCents', 'Initial market value (USD)'],
   ['costBasisCents', 'Initial pooled cost basis (USD)'],
@@ -28,7 +40,10 @@ const assetFields: readonly [keyof AssetDraft, string][] = [
   ['annualDistributionYield', 'Annual distribution yield (%)'],
   ['qualifiedDividendShare', 'Qualified share of stock dividends (%)'],
 ]
-const accountFields: readonly [keyof AccountDraft, string][] = [
+const accountFields: readonly [
+  Exclude<keyof AccountDraft, 'id' | 'assets'>,
+  string,
+][] = [
   ['name', 'Account name'],
   ['startingCashCents', 'Starting cash (USD)'],
   ['monthlyContributionCents', 'Monthly external cash contribution (USD)'],
@@ -40,6 +55,9 @@ export function usePortfolioPlanner() {
   const [outcome, setOutcome] = useState<PortfolioOutcome>()
   const [selectedAccount, setSelectedAccount] = useState('total')
   const [selectedYear, setSelectedYear] = useState('')
+  const [chartView, setChartView] = useState<PortfolioChartView>('accounts')
+  const [chartMetric, setChartMetric] =
+    useState<PortfolioChartMetric>('equityCents')
   function update(next: PortfolioDraft) {
     setDraft(next)
     setOutcome(undefined)
@@ -55,6 +73,7 @@ export function usePortfolioPlanner() {
     return {
       key,
       label,
+      help: projectionHelp[key],
       value: draft[key],
       text,
       error: error(key),
@@ -97,11 +116,6 @@ export function usePortfolioPlanner() {
       ),
     })
   }
-  function uniqueId(prefix: string, ids: string[]) {
-    let index = 1
-    while (ids.includes(`${prefix}-${index}`)) index++
-    return `${prefix}-${index}`
-  }
   const fields = [
     root('startMonth', 'Start month (YYYY-MM)', true),
     root('years', 'Projection whole years'),
@@ -115,6 +129,7 @@ export function usePortfolioPlanner() {
     const fields: FieldView[] = accountFields.map(([key, label]) => ({
       key,
       label,
+      help: accountHelp[key],
       value: String(account[key]),
       text: key === 'name',
       error: error(`${path}.${key}`),
@@ -122,9 +137,23 @@ export function usePortfolioPlanner() {
     }))
     fields.push(
       {
+        key: 'newCashMode',
+        label: 'Invest new cash',
+        value: account.newCashMode,
+        help: accountHelp.newCashMode,
+        hint: 'Starting cash and new deposits; dividend handling is separate.',
+        error: error(`${path}.newCashMode`),
+        options: [
+          { value: 'invest', label: 'Invest monthly by target allocation' },
+          { value: 'hold', label: 'Hold until a rebalance' },
+        ],
+        onChange: (value) => changeAccount(account.id, 'newCashMode', value),
+      },
+      {
         key: 'distributionMode',
         label: 'Distribution handling between rebalances',
         value: account.distributionMode,
+        help: accountHelp.distributionMode,
         options: [
           { value: 'reinvest', label: 'Reinvest after-tax distributions' },
           {
@@ -139,6 +168,8 @@ export function usePortfolioPlanner() {
         key: 'rebalance',
         label: 'Rebalance policy',
         value: account.rebalance,
+        help: accountHelp.rebalance,
+        hint: 'Threshold checks monthly; it does not automatically trade monthly.',
         options: [
           { value: 'none', label: 'None' },
           { value: 'annual', label: 'Calendar annual — December' },
@@ -152,6 +183,7 @@ export function usePortfolioPlanner() {
       title: account.name || 'Unnamed account',
       fields,
       allocationError: error(`${path}.assets`),
+      duplicate: () => update(duplicateAccount(draft, account.id)),
       remove: () =>
         update({
           ...draft,
@@ -182,6 +214,7 @@ export function usePortfolioPlanner() {
         const fields: FieldView[] = assetFields.map(([key, label]) => ({
           key,
           label,
+          help: assetHelp[key],
           value: asset[key],
           text: key === 'name',
           error: error(`${assetPath}.${key}`),
@@ -191,6 +224,7 @@ export function usePortfolioPlanner() {
           key: 'type',
           label: 'Asset type',
           value: asset.type,
+          help: assetHelp.type,
           options: [
             { value: 'stock', label: 'Stock — dividends' },
             { value: 'bond', label: 'Bond — ordinary interest' },
@@ -201,6 +235,7 @@ export function usePortfolioPlanner() {
           id: asset.id,
           title: asset.name || 'Unnamed asset',
           fields,
+          duplicate: () => update(duplicateAsset(draft, account.id, asset.id)),
           remove: () =>
             update({
               ...draft,
@@ -220,6 +255,37 @@ export function usePortfolioPlanner() {
   return {
     fields,
     accounts,
+    chartFields: [
+      {
+        key: 'chartView',
+        label: 'Chart view',
+        value: chartView,
+        help: 'By account shows a separate line for each account, using its name in the legend. Combined shows the sum of all accounts. This changes only the chart; detailed-table selections are separate. Accounts are still treated as additive holdings, not saved alternative plans.',
+        options: [
+          { value: 'accounts', label: 'Each account separately' },
+          { value: 'total', label: 'All holdings combined' },
+        ],
+        onChange: (value: string) => {
+          if (value !== 'accounts' && value !== 'total')
+            throw new Error(`Unsupported chart view: ${value}`)
+          setChartView(value)
+        },
+      },
+      {
+        key: 'chartMetric',
+        label: 'Chart measure',
+        value: chartMetric,
+        help: metricHelp[chartMetric],
+        options: portfolioChartMetricOptions,
+        onChange: (value: string) => {
+          const option = portfolioChartMetricOptions.find(
+            (item) => item.value === value,
+          )
+          if (!option) throw new Error(`Unsupported chart measure: ${value}`)
+          setChartMetric(option.value)
+        },
+      },
+    ],
     addAccount: () =>
       update({
         ...draft,
@@ -238,13 +304,15 @@ export function usePortfolioPlanner() {
     status: !outcome
       ? 'Edit inputs, then calculate. Edits clear previous results.'
       : outcome.ok
-        ? 'Calculated with portfolio-1.0.0. All values are nominal USD.'
+        ? `Calculated with ${outcome.projection.engineVersion}. All values are nominal USD.`
         : 'Correct the listed inputs before calculating.',
     report: outcome?.ok
       ? preparePortfolioReport(
           outcome.projection,
           selectedAccount,
           selectedYear,
+          chartView,
+          chartMetric,
         )
       : undefined,
     selectedAccount,
